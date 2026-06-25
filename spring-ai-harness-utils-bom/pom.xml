@@ -23,11 +23,10 @@
 	<parent>
 		<groupId>io.github.spring-ai.harness</groupId>
 		<artifactId>spring-ai-harness-utils-parent</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>${revision}</version>
 	</parent>
 
 	<artifactId>spring-ai-harness-utils-bom</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
 
 	<packaging>pom</packaging>
 
@@ -58,7 +57,7 @@
 			<dependency>
 				<groupId>io.github.spring-ai.harness</groupId>
 				<artifactId>spring-ai-harness-utils</artifactId>
-				<version>${project.version}</version>
+				<version>${revision}</version>
 			</dependency>
 		</dependencies>
 

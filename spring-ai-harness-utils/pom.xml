@@ -7,12 +7,11 @@
 	<parent>
 		<groupId>io.github.spring-ai.harness</groupId>
 		<artifactId>spring-ai-harness-utils-parent</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>${revision}</version>
 	</parent>
 
 	<artifactId>spring-ai-harness-utils</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>spring-ai-harness-utils</name>
+	<name>Spring AI Harness Utilities</name>
 	<description>Spring AI Harness Utilities</description>
 
 	<licenses>

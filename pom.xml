@@ -6,7 +6,7 @@
 
     <groupId>io.github.spring-ai.harness</groupId>
     <artifactId>spring-ai-harness-utils-parent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>${revision}</version>
 
     <name>Spring AI Harness Utilities Parent</name>
 
@@ -26,6 +26,8 @@
     </developers>
 
     <properties>
+        <revision>0.0.1-SNAPSHOT</revision>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -60,8 +62,8 @@
     <modules>
         <module>spring-ai-harness-utils</module>
         <module>spring-ai-harness-utils-bom</module>
+        <module>examples</module>
     </modules>
-
 
     <build>
         <plugins>
@@ -140,7 +142,7 @@
                     <archive>
                         <manifestEntries>
                             <Implementation-Title>${project.artifactId}</Implementation-Title>
-                            <Implementation-Version>${project.version}</Implementation-Version>
+                            <Implementation-Version>${revision}</Implementation-Version>
                         </manifestEntries>
                     </archive>
                 </configuration>
@@ -254,7 +256,7 @@
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <excludeArtifacts>
-                                spring-ai-harness-utils-parent
+                                spring-ai-harness-utils-parent,examples-parent
                             </excludeArtifacts>
                             <autoPublish>true</autoPublish>
                         </configuration>
