@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * Spring AI execution loop to break and return control to the application, which can then
  * asynchronously seek human approval.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Slf4j
 public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
