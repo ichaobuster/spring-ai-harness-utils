@@ -6,16 +6,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 /**
- * Configuration properties for BocomAI Harness Agents.
+ * Configuration properties for Harness Agents.
  */
 @Data
 @ConfigurationProperties(prefix = HarnessAgentsProperties.CONFIG_PREFIX)
 public class HarnessAgentsProperties {
 
 	/**
-	 * Spring AI Bocom Harness Agents configuration prefix.
+	 * Spring AI Harness Agents configuration prefix.
 	 */
-	public static final String CONFIG_PREFIX = "spring.ai.bocom.harness.agents";
+	public static final String CONFIG_PREFIX = "spring.ai.harness.agents";
 
 	/**
 	 * workspace 本地文件系统路径

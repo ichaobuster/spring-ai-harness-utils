@@ -20,6 +20,7 @@ import io.github.springai.harness.tool.ToolResultBudgetTool;
 import io.github.springai.harness.util.SkillUtil;
 import io.modelcontextprotocol.client.McpSyncClient;
 import lombok.extern.slf4j.Slf4j;
+import org.springaicommunity.agent.tools.TodoWriteTool;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
@@ -91,7 +92,7 @@ public class HarnessAgents {
 			@Autowired StringRedisTemplate stringRedisTemplate,
 			@Autowired AgentTaskService agentTaskService,
 			@Autowired AgentMcpClients agentMcpClients,
-			@Autowired LazyLoadSandboxCreator sandboxCreator
+			@Autowired(required = false) LazyLoadSandboxCreator sandboxCreator
 	) {
 		this.agentWorkspace = agentWorkspace;
 		this.chatModel = chatModel;
@@ -106,8 +107,8 @@ public class HarnessAgents {
 		return ChatClient.builder(chatModel)
 				.defaultToolCallbacks(ToolResultBudgetTool.createToolCallback(stringRedisTemplate))
 				.defaultTools(
-						new DateTimeTools()
-//						TodoWriteTool.builder().build()
+						new DateTimeTools(),
+						TodoWriteTool.builder().build()
 						// TODO 使用 sandbox 替换 SHELL TOOL
 //						ShellTools.builder().build()
 				)
@@ -172,10 +173,16 @@ public class HarnessAgents {
 		// TODO 添加 AskUserQuestionTool？
 
 		// 添加沙箱工具
-		LazyLoadSandboxToolsService sandboxService = this.sandboxCreator.createToolService(config.getAgentId());
-		List<ToolCallback> sandboxToolCallbacks = sandboxService.getSandboxToolCallbacks();
+		LazyLoadSandboxToolsService sandboxService;
+		List<ToolCallback> sandboxToolCallbacks = new ArrayList<>();
+		if (this.sandboxCreator != null) {
+			sandboxService = this.sandboxCreator.createToolService(config.getAgentId());
+			sandboxToolCallbacks = sandboxService.getSandboxToolCallbacks();
+		} else {
+            sandboxService = null;
+        }
 
-		// TODO python 执行用沙箱还是用 PythonService
+        // TODO python 执行用沙箱还是用 PythonService
 
 		// SubAgent 不能使用的工具
 		List<ToolCallback> toolsSubAgentNoPermission = new ArrayList<>();
@@ -252,7 +259,9 @@ public class HarnessAgents {
 				.chatClientResponse()
 				.doFinally(signal -> {
 					agentMcpClients.closeMcpSyncClients(mcpSyncClients);
-					sandboxService.closeMcpClient();
+					if (sandboxService != null) {
+						sandboxService.closeMcpClient();
+					}
 				});
 	}
 

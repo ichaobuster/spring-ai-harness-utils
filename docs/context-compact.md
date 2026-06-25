@@ -1,7 +1,7 @@
 # Context Compact (上下文压缩)
 
 随着对话深度的增加和复杂工具的调用，发送给对话模型（LLM）的上下文 Token 数量会快速膨胀。  
-为了对输入上下文进行合理管理，避免超出 LLM 的上下文窗口（Context Window）限制，在保护核心提问意图的前提下降低资源消耗，Spring AI Bocom 参考了 `Claude Code` 的源码实现了上下文压缩（Context Compact）机制。
+为了对输入上下文进行合理管理，避免超出 LLM 的上下文窗口（Context Window）限制，在保护核心提问意图的前提下降低资源消耗，Spring AI Harness Utils 参考了 `Claude Code` 的源码实现了上下文压缩（Context Compact）机制。
 
 这套压缩机制是基于 Spring AI `ChatClient` 和 `Advisor` 体系的非侵入式、多阶段拦截和清理流水线。通过四个核心 Advisor 从不同维度递进式地缩减历史对话内容。
 
