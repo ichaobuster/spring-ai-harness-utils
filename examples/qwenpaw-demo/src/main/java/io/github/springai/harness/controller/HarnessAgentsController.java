@@ -7,6 +7,7 @@ import io.github.springai.harness.workspace.AgentWorkspace;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -42,7 +43,7 @@ public class HarnessAgentsController {
 		return UUID.randomUUID().toString();
 	}
 
-	@PostMapping("/chat")
+	@PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ChatClientResponse> chat(@RequestBody ChatRequest request) {
 		// TODO userId 的其他获取方法
 		AgentConfig agentConfig = agentWorkspace.loadAgentConfig(request.userId);
