@@ -75,6 +75,7 @@ public class QwenPawApiController {
                 .map(ccr -> {
                     List<OpenAiApi.ChatCompletionMessage.MediaContent> content = null;
                     Usage usage = null;
+                    String status = atomicSeqNum.get() == 0 ? "created" : "in_progress";
                     if (ccr.chatResponse() != null) {
                         if (ccr.chatResponse().getResult() != null) {
                             AssistantMessage am = ccr.chatResponse().getResult().getOutput();
@@ -82,14 +83,13 @@ public class QwenPawApiController {
                         }
                         if (ccr.chatResponse().getMetadata() != null) {
                             usage = ccr.chatResponse().getMetadata().getUsage();
+                            // 基于有 usage 的时候是最后一个 chunk 的假设
+                            // TODO 是否要改为判断 finishReason ？
+                            status = "completed";
                         }
                     }
 
-                    // TODO 其他字段细节
-                    String status = "in_progress";
-                    String error = null;
-
-                    return new AgentStreamingResponse(atomicSeqNum.getAndIncrement(), "response", status, content, error, request.sessionId(), usage);
+                    return new AgentStreamingResponse(atomicSeqNum.getAndIncrement(), "response", status, content, null, request.sessionId(), usage);
                 }); // TODO 错误处理
     }
 
