@@ -7,17 +7,17 @@ import io.github.springai.harness.config.SessionConfig;
 import io.github.springai.harness.mcp.AgentMcpClients;
 import io.github.springai.harness.sandbox.LazyLoadSandboxCreator;
 import io.github.springai.harness.sandbox.LazyLoadSandboxToolsService;
+import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.task.AgentTaskService;
 import io.github.springai.harness.task.AgentTaskTools;
-import io.github.springai.harness.tool.SkillsTool;
-import io.github.springai.harness.util.FileSystemConfigUtil;
-import io.github.springai.harness.util.ResourceUtil;
-import io.github.springai.harness.workspace.AgentWorkspace;
-import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.tool.DateTimeTools;
+import io.github.springai.harness.tool.SkillsTool;
 import io.github.springai.harness.tool.StorageProviderTools;
 import io.github.springai.harness.tool.ToolResultBudgetTool;
+import io.github.springai.harness.util.FileSystemConfigUtil;
+import io.github.springai.harness.util.ResourceUtil;
 import io.github.springai.harness.util.SkillUtil;
+import io.github.springai.harness.workspace.AgentWorkspace;
 import io.modelcontextprotocol.client.McpSyncClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.agent.tools.TodoWriteTool;
@@ -153,23 +153,6 @@ public class HarnessAgents {
 				StorageProviderTools.builder(userWorkspace).build()
 		));
 		// TODO subagent 是否添加需要 harness 的 tools ？
-//		List<ToolCallback> harnessToolCallbacks = new ArrayList<>();
-//		harnessToolCallbacks.addAll(
-//				HarnessToolUtil.toHarnessToolCallbacks(ToolCallbacks.from(FileSystemTools.builder().build()), userWorkspace, "filePath")
-//		);
-//		harnessToolCallbacks.addAll(HarnessToolUtil.toHarnessToolCallbacks(
-//				ToolCallbacks.from(ListDirectoryTool.builder().workingDirectory(userWorkspace).build()), userWorkspace, "path")
-//		);
-//		harnessToolCallbacks.addAll(HarnessToolUtil.toHarnessToolCallbacks(
-//				ToolCallbacks.from(GlobTool.builder().workingDirectory(userWorkspace).build()), userWorkspace, "path")
-//		);
-//		harnessToolCallbacks.addAll(HarnessToolUtil.toHarnessToolCallbacks(
-//				ToolCallbacks.from(GrepTool.builder()
-//						.workingDirectory(userWorkspace)
-//						.maxOutputLength(10_000)
-//						.maxLineLength(1000)
-//						.build()), userWorkspace, "path")
-//		);
 		// TODO 添加 AskUserQuestionTool？
 
 		// 添加沙箱工具
@@ -200,7 +183,9 @@ public class HarnessAgents {
 
 		return this.chatClient.prompt()
 				.options(OpenAiChatOptions.builder()
-						.model(config.getModel())
+//						.model(config.getModel())
+						.streamUsage(true)
+						.parallelToolCalls(false) // 由于 human-in-the-loop 现在通过 returnDirect ，因此无法使用并行工具调用特性
 						.build())
 				.system(createSystemMessage(userWorkspace, config))
 				// autoCompactAdvisor 需使用 Consumer
