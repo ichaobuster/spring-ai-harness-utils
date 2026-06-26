@@ -1,5 +1,6 @@
 package io.github.springai.harness.autoconfig;
 
+import io.github.springai.harness.HarnessAgentsProperties;
 import io.github.springai.harness.task.AgentTaskConst;
 import org.redisson.Redisson;
 import org.redisson.RedissonNode;
@@ -8,6 +9,7 @@ import org.redisson.config.Config;
 import org.redisson.config.RedissonNodeConfig;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +22,7 @@ import java.util.Collections;
  * @author ichaobuster
  */
 @Configuration
+@ConditionalOnProperty(prefix = HarnessAgentsProperties.CONFIG_PREFIX, name = "tasks.enabled", havingValue = "true", matchIfMissing = false)
 public class RedissonAutoConfiguration {
 
 	@Bean(name = "scheduledTaskRedissonClient", destroyMethod = "shutdown")

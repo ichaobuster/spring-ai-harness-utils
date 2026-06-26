@@ -53,11 +53,11 @@ public class AgentTaskService {
 
 	private final CronParser unixCronParser;
 
-	public AgentTaskService(@Autowired RedissonClient redissonClient, @Autowired AgentWorkspace agentWorkspace) {
+	public AgentTaskService(@Autowired(required = false) RedissonClient redissonClient, @Autowired AgentWorkspace agentWorkspace) {
 		this.redissonClient = redissonClient;
 		this.agentWorkspace = agentWorkspace;
 
-		this.executorService = redissonClient.getExecutorService(AgentTaskConst.AGENT_TASK_EXECUTOR_NAME);
+		this.executorService = redissonClient == null ? null : redissonClient.getExecutorService(AgentTaskConst.AGENT_TASK_EXECUTOR_NAME);
 		this.unixCronParser = new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX));
 	}
 
