@@ -207,7 +207,8 @@ public class HarnessAgents {
 						// human-in-the-loop
 						HumanInTheLoopBeforeAdvisor.builder(chatMemory)
 								.needPermissionTools(config.getNeedPermissionTools())
-								.build()
+								.build(),
+						HumanInTheLoopAfterAdvisor.builder().build()
 						// dream
 						// TODO dream 目前编码质量存在问题
 //						AutoDreamToolsAdvisor.builder()

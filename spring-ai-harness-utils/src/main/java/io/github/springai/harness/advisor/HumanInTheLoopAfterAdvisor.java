@@ -21,6 +21,19 @@ import java.util.List;
 @Slf4j
 public class HumanInTheLoopAfterAdvisor implements BaseAdvisor {
 
+    // Before the ToolCallAdvisor BaseAdvisor.HIGHEST_PRECEDENCE + 300
+    private static final int DEFAULT_ORDER = BaseAdvisor.HIGHEST_PRECEDENCE + 250;
+
+    private final int order;
+
+    public HumanInTheLoopAfterAdvisor() {
+        this(DEFAULT_ORDER);
+    }
+
+    private HumanInTheLoopAfterAdvisor(int order) {
+        this.order = order;
+    }
+
     @Override
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain advisorChain) {
         return request;
@@ -71,7 +84,26 @@ public class HumanInTheLoopAfterAdvisor implements BaseAdvisor {
 
     @Override
     public int getOrder() {
-        // Before the ToolCallAdvisor BaseAdvisor.HIGHEST_PRECEDENCE + 300
-        return BaseAdvisor.HIGHEST_PRECEDENCE + 250;
+        return this.order;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private int order = DEFAULT_ORDER;
+
+        private Builder() {
+        }
+
+        public Builder order(int order) {
+            this.order = order;
+            return this;
+        }
+
+        public HumanInTheLoopAfterAdvisor build() {
+            return new HumanInTheLoopAfterAdvisor(this.order);
+        }
     }
 }

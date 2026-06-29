@@ -2,12 +2,14 @@ package io.github.springai.harness.advisor;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
 public class HumanInTheLoopSpec {
     @Data
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class HitlRequest {
         private boolean hitlRequired;
         private String tool;
@@ -16,6 +18,7 @@ public class HumanInTheLoopSpec {
     }
 
     @Data
+    @NoArgsConstructor
     public static class HitlResponse {
         private HumanInTheLoopSpec.HitlRequest request;
         private HumanInTheLoopSpec.Permission permission;
