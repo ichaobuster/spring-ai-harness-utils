@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 /**
- * HumanInTheLoopAfterAdvisor 配合 {@link HumanInTheLoopBeforeAdvisor} 使用，补充 HITL 触发后的 toolId
+ * HumanInTheLoopAfterAdvisor Used in conjunction with {@link HumanInTheLoopBeforeAdvisor} to supply the toolId after HITL is triggered.
  *
  * @author buyc
  */

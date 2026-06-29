@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * Spring AI execution loop to break and return control to the application, which can then
  * asynchronously seek human approval.
  * <p>
- * 配合 {@link HumanInTheLoopBeforeAdvisor} 使用，补充 HITL 触发后的 toolId
+ * Used in conjunction with {@link HumanInTheLoopBeforeAdvisor} to supply the toolId after HITL is triggered.
  *
  * @author ichaobuster
  */
