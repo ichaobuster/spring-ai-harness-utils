@@ -8,17 +8,17 @@ import java.util.Map;
 public class HumanInTheLoopSpec {
     @Data
     @AllArgsConstructor
-    static final class HitlRequest {
-        private final boolean hitlRequired;
-        private final String tool;
-        private final Map<String, Object> args;
-        private final String toolCallId;
+    public static class HitlRequest {
+        private boolean hitlRequired;
+        private String tool;
+        private Map<String, Object> args;
+        private String toolId;
     }
 
     @Data
-    public static final class HitlResponse {
-        private final HumanInTheLoopSpec.HitlRequest request;
-        private final HumanInTheLoopSpec.Permission permission;
+    public static class HitlResponse {
+        private HumanInTheLoopSpec.HitlRequest request;
+        private HumanInTheLoopSpec.Permission permission;
         private boolean toolCalled = false;
 
         public HitlResponse(HumanInTheLoopSpec.HitlRequest request, HumanInTheLoopSpec.Permission permission) {

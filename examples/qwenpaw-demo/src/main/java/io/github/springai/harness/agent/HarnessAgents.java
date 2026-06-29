@@ -134,11 +134,11 @@ public class HarnessAgents {
 				.build();
 	}
 
-	public Flux<ChatClientResponse> chat(AgentConfig config, String conversationId, String userText, List<Media> media, HumanInTheLoopAdvisor.HitlResponse hitlResponse) {
+	public Flux<ChatClientResponse> chat(AgentConfig config, String conversationId, String userText, List<Media> media, HumanInTheLoopSpec.HitlResponse hitlResponse) {
 		return chat(config, conversationId, userText, media, hitlResponse, false);
 	}
 
-	public Flux<ChatClientResponse> chat(AgentConfig config, String conversationId, String userText, List<Media> media, HumanInTheLoopAdvisor.HitlResponse hitlResponse, boolean isSubAgent) {
+	public Flux<ChatClientResponse> chat(AgentConfig config, String conversationId, String userText, List<Media> media, HumanInTheLoopSpec.HitlResponse hitlResponse, boolean isSubAgent) {
 		Assert.notNull(config, "config should not be null");
 		Assert.hasText(conversationId, "conversationId should not be empty");
 		Assert.isTrue(StringUtils.hasText(userText) || hitlResponse != null, "userText and hitlResponse should not both be null");
@@ -205,7 +205,7 @@ public class HarnessAgents {
 								.memoryStorage(userWorkspace.subDirProvider(MEMORIES_SUB_DIR))
 								.build(),
 						// human-in-the-loop
-						HumanInTheLoopAdvisor.builder(chatMemory)
+						HumanInTheLoopBeforeAdvisor.builder(chatMemory)
 								.needPermissionTools(config.getNeedPermissionTools())
 								.build()
 						// dream
@@ -237,9 +237,9 @@ public class HarnessAgents {
 				})
 				// HITL context 处理
 				.advisors(a -> {
-					if (hitlResponse != null) a.param(HumanInTheLoopAdvisor.HITL_RESPONSE_KEY, hitlResponse);
+					if (hitlResponse != null) a.param(HumanInTheLoopBeforeAdvisor.HITL_RESPONSE_KEY, hitlResponse);
 				})
-				.advisors(a -> a.param(HumanInTheLoopAdvisor.HITL_ALWAYS_ALLOW_TOOLS_KEY, alwaysAllowTools))
+				.advisors(a -> a.param(HumanInTheLoopBeforeAdvisor.HITL_ALWAYS_ALLOW_TOOLS_KEY, alwaysAllowTools))
 				.stream()
 				.chatClientResponse()
 				.doFinally(signal -> {
@@ -251,7 +251,7 @@ public class HarnessAgents {
 	}
 
 
-	private Set<String> getAlwaysAllowTools(StorageProvider userWorkspace, AgentConfig config, String conversationId, HumanInTheLoopAdvisor.HitlResponse hitlResponse) {
+	private Set<String> getAlwaysAllowTools(StorageProvider userWorkspace, AgentConfig config, String conversationId, HumanInTheLoopSpec.HitlResponse hitlResponse) {
 		if (hitlResponse == null) {
 			return new HashSet<>();
 		}
@@ -264,7 +264,7 @@ public class HarnessAgents {
 				new SessionConfig(config.getAgentId(), conversationId)
 		);
 		Set<String> allowedInSessionTools = new HashSet<>(sessionConfig.getAllowedTools());
-		if (hitlResponse.getPermission() == HumanInTheLoopAdvisor.Permission.ALLOW_ALWAYS && hitlResponse.getRequest() != null && StringUtils.hasText(hitlResponse.getRequest().getTool())) {
+		if (hitlResponse.getPermission() == HumanInTheLoopSpec.Permission.ALLOW_ALWAYS && hitlResponse.getRequest() != null && StringUtils.hasText(hitlResponse.getRequest().getTool())) {
 			allowedInSessionTools.add(hitlResponse.getRequest().getTool());
 			FileSystemConfigUtil.writeConfigIntoFile(userWorkspace, sessionFileName, sessionConfig);
 		}

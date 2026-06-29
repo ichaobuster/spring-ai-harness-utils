@@ -1,6 +1,6 @@
 package io.github.springai.harness.controller;
 
-import io.github.springai.harness.advisor.HumanInTheLoopAdvisor;
+import io.github.springai.harness.advisor.HumanInTheLoopSpec;
 import io.github.springai.harness.agent.HarnessAgents;
 import io.github.springai.harness.config.AgentConfig;
 import io.github.springai.harness.workspace.AgentWorkspace;
@@ -51,7 +51,7 @@ public class HarnessAgentsController {
 	}
 
 	public record ChatRequest(String userId, String conversationId, String text,
-							  HumanInTheLoopAdvisor.HitlResponse hitlResponse) {
+	                          HumanInTheLoopSpec.HitlResponse hitlResponse) {
 	}
 
 }
