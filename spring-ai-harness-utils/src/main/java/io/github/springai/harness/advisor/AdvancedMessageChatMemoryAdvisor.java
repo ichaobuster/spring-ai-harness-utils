@@ -35,13 +35,16 @@ public final class AdvancedMessageChatMemoryAdvisor implements BaseChatMemoryAdv
 
 	private final boolean useStrict;
 
-	private AdvancedMessageChatMemoryAdvisor(ChatMemory chatMemory, int order, Scheduler scheduler, boolean useStrict) {
+	private final ChatMemory chatMemoryForLog;
+
+	private AdvancedMessageChatMemoryAdvisor(ChatMemory chatMemory, int order, Scheduler scheduler, boolean useStrict, ChatMemory chatMemoryForLog) {
 		Assert.notNull(chatMemory, "chatMemory cannot be null");
 		Assert.notNull(scheduler, "scheduler cannot be null");
 		this.chatMemory = chatMemory;
 		this.order = order;
 		this.scheduler = scheduler;
 		this.useStrict = useStrict;
+		this.chatMemoryForLog = chatMemoryForLog;
 	}
 
 	@Override
@@ -83,6 +86,7 @@ public final class AdvancedMessageChatMemoryAdvisor implements BaseChatMemoryAdv
 		Message userMessage = processedChatClientRequest.prompt().getLastUserOrToolResponseMessage();
 		if (!useStrict || userMessage == processedMessages.get(processedMessages.size() - 1)) {
 			this.chatMemory.add(conversationId, userMessage);
+			if (this.chatMemoryForLog != null) this.chatMemoryForLog.add(conversationId, userMessage);
 		}
 
 		return processedChatClientRequest;
@@ -99,6 +103,7 @@ public final class AdvancedMessageChatMemoryAdvisor implements BaseChatMemoryAdv
 					.toList();
 		}
 		this.chatMemory.add(this.getConversationId(chatClientResponse.context()), assistantMessages);
+		if (this.chatMemoryForLog != null) this.chatMemoryForLog.add(this.getConversationId(chatClientResponse.context()), assistantMessages);
 		return chatClientResponse;
 	}
 
@@ -130,6 +135,8 @@ public final class AdvancedMessageChatMemoryAdvisor implements BaseChatMemoryAdv
 		private final ChatMemory chatMemory;
 
 		private boolean useStrict = false;
+
+		private ChatMemory chatMemoryForLog;
 
 		private Builder(ChatMemory chatMemory) {
 			Assert.notNull(chatMemory, "chatMemory cannot be null");
@@ -164,12 +171,20 @@ public final class AdvancedMessageChatMemoryAdvisor implements BaseChatMemoryAdv
 		}
 
 		/**
+		 * 记录完整 chat log 的 ChatMemory，不参与 session 读取，仅用于记录
+		 */
+		public Builder chatMemoryForLog(ChatMemory chatMemoryForLog) {
+			this.chatMemoryForLog = chatMemoryForLog;
+			return this;
+		}
+
+		/**
 		 * Build the advisor.
 		 *
 		 * @return the advisor
 		 */
 		public AdvancedMessageChatMemoryAdvisor build() {
-			return new AdvancedMessageChatMemoryAdvisor(this.chatMemory, this.order, this.scheduler, this.useStrict);
+			return new AdvancedMessageChatMemoryAdvisor(this.chatMemory, this.order, this.scheduler, this.useStrict, this.chatMemoryForLog);
 		}
 
 	}

@@ -66,7 +66,11 @@ public class HarnessAgents {
 
 	private static final String SESSIONS_SUB_DIR = "sessions";
 
+	private static final String SESSION_LOGS_SUB_DIR = "sessions/logs";
+
 	private static final int SESSION_MAX_MESSAGES = 200;
+
+	private static final int LOG_MAX_MESSAGES = 1000;
 
 	private static final String SKILLS_SUB_DIR = "skills";
 
@@ -147,6 +151,7 @@ public class HarnessAgents {
 		StorageProvider userWorkspace = this.agentWorkspace.initUserWorkspace(config);
 
 		ChatMemory chatMemory = createMemory(config);
+		ChatMemory chatMemoryForLog = createMemoryForLog(config);
 
 		// TODO 根据配置添加工具
 		List<ToolCallback> harnessToolCallbacks = List.of(ToolCallbacks.from(
@@ -197,7 +202,10 @@ public class HarnessAgents {
 						.advisorSpecConsumer())
 				.advisors(
 						// 本地 JSONL Message存储
-						AdvancedMessageChatMemoryAdvisor.builder(chatMemory).useStrict(true).build(),
+						AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
+								.chatMemoryForLog(chatMemoryForLog)
+								.useStrict(true)
+								.build(),
 						// memory
 						// TODO 是否添加记忆开关？根据是否开启开关决定是否增加 AutoMemoryToolsAdvisor ？
 						// TODO 使用 OSS Provider？
@@ -276,6 +284,9 @@ public class HarnessAgents {
 		// 删除对话记录
 		ChatMemory chatMemory = createMemory(config);
 		chatMemory.clear(conversationId);
+		// 删除logs
+		ChatMemory chatMemoryForLog = createMemoryForLog(config);
+		chatMemoryForLog.clear(conversationId);
 		// 删除 session config 文件
 		try {
 			StorageProvider userWorkspace = this.agentWorkspace.initUserWorkspace(config);
@@ -337,4 +348,13 @@ public class HarnessAgents {
 				.build();
 	}
 
+	private ChatMemory createMemoryForLog(AgentConfig config) {
+		StorageProvider userWorkspace = this.agentWorkspace.initUserWorkspace(config);
+		ChatMemoryRepository chatMemoryRepository = LocalFileChatMemoryRepository.builder(userWorkspace.subDirProvider(SESSION_LOGS_SUB_DIR))
+				.build();
+		return MessageWindowChatMemory.builder()
+				.chatMemoryRepository(chatMemoryRepository)
+				.maxMessages(LOG_MAX_MESSAGES)
+				.build();
+	}
 }

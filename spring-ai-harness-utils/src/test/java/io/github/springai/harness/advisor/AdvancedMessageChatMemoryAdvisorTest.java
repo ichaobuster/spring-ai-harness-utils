@@ -1,5 +1,6 @@
 package io.github.springai.harness.advisor;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -23,6 +24,20 @@ import static org.mockito.Mockito.mock;
 
 class AdvancedMessageChatMemoryAdvisorTest {
 
+	ChatMemory chatMemory;
+
+	ChatMemory chatMemoryForLog;
+
+	@BeforeEach
+	void setup() {
+		chatMemory = MessageWindowChatMemory.builder()
+				.chatMemoryRepository(new InMemoryChatMemoryRepository())
+				.build();
+		chatMemoryForLog = MessageWindowChatMemory.builder()
+				.chatMemoryRepository(new InMemoryChatMemoryRepository())
+				.build();
+	}
+
 	// -------------------------------------------------------------------------
 	// Builder validation
 	// -------------------------------------------------------------------------
@@ -36,7 +51,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenSchedulerIsNullThenThrow() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 		assertThatThrownBy(() -> AdvancedMessageChatMemoryAdvisor.builder(chatMemory).scheduler(null).build())
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("scheduler cannot be null");
@@ -44,16 +58,12 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenBuilderWithDefaultsThenSuccess() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 		assertThat(advisor.getOrder()).isEqualTo(Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER);
 	}
 
 	@Test
 	void whenCustomOrderIsSetThenGetOrderReturnsIt() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
 				.order(42)
 				.scheduler(Schedulers.immediate())
@@ -67,7 +77,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenConversationIdAbsentFromContextThenThrow() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 
 		assertThatThrownBy(() -> advisor.getConversationId(Map.of())).isInstanceOf(IllegalArgumentException.class)
@@ -76,7 +85,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenConversationIdPresentInContextThenReturn() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 
 		String result = advisor.getConversationId(Map.of(ChatMemory.CONVERSATION_ID, "session-42"));
@@ -90,10 +98,9 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenBeforeWithUserMessageThenStoreInMemory() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
+		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
+				.chatMemoryForLog(chatMemoryForLog)
 				.build();
-		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 		Prompt prompt = Prompt.builder().messages(new UserMessage("Hello")).build();
 		ChatClientRequest request = ChatClientRequest.builder()
 				.prompt(prompt)
@@ -107,14 +114,19 @@ class AdvancedMessageChatMemoryAdvisorTest {
 		assertThat(messages).hasSize(1);
 		assertThat(messages.get(0)).isInstanceOf(UserMessage.class);
 		assertThat(messages.get(0).getText()).isEqualTo("Hello");
+
+		List<Message> logs = chatMemoryForLog.get("test-conversation");
+		assertThat(logs).hasSize(1);
+		assertThat(logs.get(0)).isInstanceOf(UserMessage.class);
+		assertThat(logs.get(0).getText()).isEqualTo("Hello");
 	}
 
 	@Test
 	void whenBeforeUseStrictThenNotStoreInMemory() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
+		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
+				.chatMemoryForLog(chatMemoryForLog)
+				.useStrict(true)
 				.build();
-		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).useStrict(true).build();
 		Prompt prompt = Prompt.builder().messages(new UserMessage("Hello"), new AssistantMessage("Hi")).build();
 		ChatClientRequest request = ChatClientRequest.builder()
 				.prompt(prompt)
@@ -126,13 +138,13 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 		List<Message> messages = chatMemory.get("test-conversation");
 		assertThat(messages).hasSize(0);
+
+		List<Message> logs = chatMemoryForLog.get("test-conversation");
+		assertThat(logs).hasSize(0);
 	}
 
 	@Test
 	void whenBeforeWithToolResponseMessageThenStoreInMemory() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 		ToolResponseMessage toolResponse = ToolResponseMessage.builder()
 				.responses(List.of(new ToolResponseMessage.ToolResponse("weatherTool", "getWeather", "Sunny, 72°F")))
@@ -155,9 +167,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenBeforeMovesSystemMessageToFirstPosition() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		chatMemory.add("test-conversation",
 				List.of(new UserMessage("Previous question"), new AssistantMessage("Previous answer")));
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
@@ -179,9 +188,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void whenBeforeSystemMessageAlreadyFirstThenKeepOrder() {
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory).build();
 		Prompt prompt = Prompt.builder()
 				.messages(new SystemMessage("You are a helpful assistant"), new UserMessage("Hello"))
@@ -202,10 +208,6 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void afterMethodHandlesNullChatResponse() {
-		// Create a chat memory
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		// Create advisor with default values
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
 				.build();
@@ -220,12 +222,9 @@ class AdvancedMessageChatMemoryAdvisorTest {
 
 	@Test
 	void afterMethodHandlesSingleChatResponse() {
-		// Create a chat memory
-		ChatMemory chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(new InMemoryChatMemoryRepository())
-				.build();
 		// Create advisor with default values
 		AdvancedMessageChatMemoryAdvisor advisor = AdvancedMessageChatMemoryAdvisor.builder(chatMemory)
+				.chatMemoryForLog(chatMemoryForLog)
 				.build();
 		// Create a chatClientResponse with no chat response
 		ChatClientResponse response = ChatClientResponse.builder().chatResponse(ChatResponse.builder()
@@ -239,6 +238,10 @@ class AdvancedMessageChatMemoryAdvisorTest {
 		List<Message> messages = chatMemory.get("test-conversation");
 		assertThat(messages).hasSize(1);
 		assertThat(messages.get(0)).isInstanceOf(AssistantMessage.class);
+
+		List<Message> logs = chatMemoryForLog.get("test-conversation");
+		assertThat(logs).hasSize(1);
+		assertThat(logs.get(0)).isInstanceOf(AssistantMessage.class);
 	}
 
 }
