@@ -1,7 +1,5 @@
 package io.github.springai.harness.advisor;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -77,13 +75,13 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
         List<Message> messages = chatClientRequest.prompt().getInstructions();
 
         Object hitlResponseObj = chatClientRequest.context().get(HITL_RESPONSE_KEY);
-        if (hitlResponseObj != null && hitlResponseObj instanceof HitlResponse hitlResponse && !hitlResponse.isToolCalled()) {
+        if (hitlResponseObj != null && hitlResponseObj instanceof HumanInTheLoopSpec.HitlResponse hitlResponse && !hitlResponse.isToolCalled()) {
             if (messages.size() > 0) {
                 Message lastMessage = messages.get(messages.size() - 1);
                 Prompt toolCallPrompt = chatClientRequest.prompt();
                 if (lastMessage instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls()) {
                     String conversationId = getConversationId(chatClientRequest.context());
-                    if (Permission.DENY == hitlResponse.getPermission()) {
+                    if (HumanInTheLoopSpec.Permission.DENY == hitlResponse.getPermission()) {
                         // DENY 包装成拒绝调用情况
                         List<ToolCallback> toolCallbacksCopy = toolCallbacks.stream().map(tc ->
                                         tc.getToolDefinition().name().equals(hitlResponse.getRequest().getTool()) ? wrapAsUserDenyTool(tc) : tc
@@ -130,7 +128,7 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
         String toolName = toolCallback.getToolDefinition().name();
 
         return FunctionToolCallback.builder(toolName, (Function<Map<String, Object>, String>) (args) ->
-                        JsonParser.toJson(new HitlRequest(true, toolName, args, null))
+                        JsonParser.toJson(new HumanInTheLoopSpec.HitlRequest(true, toolName, args, null))
                 )
                 .description(toolCallback.getToolDefinition().description())
                 .inputSchema(toolCallback.getToolDefinition().inputSchema())
@@ -200,34 +198,6 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
             return new HumanInTheLoopAdvisor(this.chatMemory, this.order, this.needPermissionTools, this.toolCallingManager);
         }
 
-    }
-	
-    @Data
-    @AllArgsConstructor
-    public static final class HitlRequest {
-        private final boolean hitlRequired;
-        private final String tool;
-        private final Map<String, Object> args;
-        private final String toolCallId;
-    }
-
-    @Data
-    public static final class HitlResponse {
-        private final HitlRequest request;
-        private final Permission permission;
-        private boolean toolCalled = false;
-
-        public HitlResponse(HitlRequest request, Permission permission) {
-            this.request = request;
-            this.permission = permission;
-        }
-
-    }
-
-    public enum Permission {
-        ALLOW_ONCE,
-        ALLOW_ALWAYS,
-        DENY
     }
 
 }

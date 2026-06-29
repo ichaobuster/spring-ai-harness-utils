@@ -178,8 +178,8 @@ class HumanInTheLoopAdvisorTest {
 					.toolCallbacks(new ArrayList<>(List.of(fooTool, barTool)))
 					.build();
 
-			HumanInTheLoopAdvisor.HitlRequest hitlRequest = new HumanInTheLoopAdvisor.HitlRequest(true, "foo", Map.of("arg1", "val1"));
-			HumanInTheLoopAdvisor.HitlResponse hitlResponse = new HumanInTheLoopAdvisor.HitlResponse(hitlRequest, HumanInTheLoopAdvisor.Permission.DENY);
+			HumanInTheLoopSpec.HitlRequest hitlRequest = new HumanInTheLoopSpec.HitlRequest(true, "foo", Map.of("arg1", "val1"), null);
+			HumanInTheLoopSpec.HitlResponse hitlResponse = new HumanInTheLoopSpec.HitlResponse(hitlRequest, HumanInTheLoopSpec.Permission.DENY);
 
 			ChatClientRequest request = request(new Prompt(new ArrayList<>(List.of(
 					new UserMessage("hi"),
@@ -238,8 +238,8 @@ class HumanInTheLoopAdvisorTest {
 				.toolCallbacks(new ArrayList<>(List.of(fooTool, barTool)))
 				.build();
 
-		HumanInTheLoopAdvisor.HitlRequest hitlRequest = new HumanInTheLoopAdvisor.HitlRequest(true, "foo", Map.of("arg1", "val1"));
-		HumanInTheLoopAdvisor.HitlResponse hitlResponse = new HumanInTheLoopAdvisor.HitlResponse(hitlRequest, HumanInTheLoopAdvisor.Permission.ALLOW_ONCE);
+		HumanInTheLoopSpec.HitlRequest hitlRequest = new HumanInTheLoopSpec.HitlRequest(true, "foo", Map.of("arg1", "val1"), null);
+		HumanInTheLoopSpec.HitlResponse hitlResponse = new HumanInTheLoopSpec.HitlResponse(hitlRequest, HumanInTheLoopSpec.Permission.ALLOW_ONCE);
 
 		ChatClientRequest request = request(new Prompt(new ArrayList<>(List.of(
 				new UserMessage("hi"),
@@ -297,8 +297,8 @@ class HumanInTheLoopAdvisorTest {
 				.toolCallbacks(new ArrayList<>(List.of(fooTool, barTool)))
 				.build();
 
-		HumanInTheLoopAdvisor.HitlRequest hitlRequest = new HumanInTheLoopAdvisor.HitlRequest(true, "foo", Map.of("arg1", "val1"));
-		HumanInTheLoopAdvisor.HitlResponse hitlResponse = new HumanInTheLoopAdvisor.HitlResponse(hitlRequest, HumanInTheLoopAdvisor.Permission.ALLOW_ALWAYS);
+		HumanInTheLoopSpec.HitlRequest hitlRequest = new HumanInTheLoopSpec.HitlRequest(true, "foo", Map.of("arg1", "val1"), null);
+		HumanInTheLoopSpec.HitlResponse hitlResponse = new HumanInTheLoopSpec.HitlResponse(hitlRequest, HumanInTheLoopSpec.Permission.ALLOW_ALWAYS);
 
 		ChatClientRequest request = request(new Prompt(new ArrayList<>(List.of(
 				new UserMessage("hi"),
