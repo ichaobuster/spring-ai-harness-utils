@@ -130,7 +130,7 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
         String toolName = toolCallback.getToolDefinition().name();
 
         return FunctionToolCallback.builder(toolName, (Function<Map<String, Object>, String>) (args) ->
-                        JsonParser.toJson(new HitlRequest(true, toolName, args))
+                        JsonParser.toJson(new HitlRequest(true, toolName, args, null))
                 )
                 .description(toolCallback.getToolDefinition().description())
                 .inputSchema(toolCallback.getToolDefinition().inputSchema())
@@ -150,8 +150,8 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
     }
 
     @Override
-    public ChatClientResponse after(ChatClientResponse chatClientResponse, AdvisorChain advisorChain) {
-        return chatClientResponse;
+    public ChatClientResponse after(ChatClientResponse response, AdvisorChain advisorChain) {
+        return response;
     }
 
     @Override
@@ -208,6 +208,7 @@ public class HumanInTheLoopAdvisor implements BaseChatMemoryAdvisor {
         private final boolean hitlRequired;
         private final String tool;
         private final Map<String, Object> args;
+        private final String toolCallId;
     }
 
     @Data
