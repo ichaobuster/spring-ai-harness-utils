@@ -320,7 +320,7 @@ public class HarnessAgents {
 		if (systemMessage.trim().isBlank()) {
 			systemMessage = DEFAULT_SYS_PROMPT;
 		}
-		return "Your workspace is %s\n\n".formatted(userWorkspace.toString()) + systemMessage;
+		return systemMessage;
 	}
 
 
