@@ -30,6 +30,7 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.content.Media;
 import org.springframework.ai.mcp.McpToolUtils;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
@@ -90,9 +91,12 @@ public class HarnessAgents {
 
 	private final ChatClient chatClient;
 
+	private final ToolCallingManager toolCallingManager;
+
 	public HarnessAgents(
 			@Autowired AgentWorkspace agentWorkspace,
 			@Autowired ChatModel chatModel,
+			@Autowired ToolCallingManager toolCallingManager,
 			@Autowired StringRedisTemplate stringRedisTemplate,
 			@Autowired AgentTaskService agentTaskService,
 			@Autowired AgentMcpClients agentMcpClients,
@@ -100,6 +104,7 @@ public class HarnessAgents {
 	) {
 		this.agentWorkspace = agentWorkspace;
 		this.chatModel = chatModel;
+		this.toolCallingManager = toolCallingManager;
 		this.stringRedisTemplate = stringRedisTemplate;
 		this.agentTaskService = agentTaskService;
 		this.agentMcpClients = agentMcpClients;
@@ -117,7 +122,7 @@ public class HarnessAgents {
 //						ShellTools.builder().build()
 				)
 				.defaultAdvisors(
-						ToolCallAdvisor.builder().disableMemory().build(),
+						ToolCallAdvisor.builder().disableMemory().toolCallingManager(toolCallingManager).build(),
 						// context compact
 						ToolResultBudgetAdvisor.builder(stringRedisTemplate)
 								.skipToolName(ToolResultBudgetTool.TOOL_NAME)
@@ -214,6 +219,7 @@ public class HarnessAgents {
 								.build(),
 						// human-in-the-loop
 						HumanInTheLoopBeforeAdvisor.builder(chatMemory)
+								.toolCallingManager(toolCallingManager)
 								.needPermissionTools(config.getNeedPermissionTools())
 								.build(),
 						HumanInTheLoopAfterAdvisor.builder().build()
