@@ -203,6 +203,15 @@ public interface StorageProvider {
 	String readString(String path) throws IOException;
 
 	/**
+	 * Reads an image file as a Base64 image string.
+	 *
+	 * @param path the image file path relative to the storage.
+	 * @return the image content in {@code data:image/{type};base64,{payload}} format.
+	 * @throws IOException if an error occurs or the file cannot be decoded as an image.
+	 */
+	String readImage(String path) throws IOException;
+
+	/**
 	 * Reads all lines of a file.
 	 *
 	 * @param path the file path relative to the storage.

@@ -7,10 +7,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
@@ -113,6 +118,41 @@ class LocalFileStorageTest {
 		storage.writeString("new.txt", "hello");
 		assertThat(storage.readString("new.txt")).isEqualTo("hello");
 		assertThat(Files.readString(tempDir.resolve("new.txt"))).isEqualTo("hello");
+	}
+
+	@Test
+	@DisplayName("readImage() returns small PNG as original base64 data URL")
+	void readImageSmallPng() throws IOException {
+		byte[] pngBytes = createImageBytes(16, 12, "png");
+		Files.write(tempDir.resolve("small.png"), pngBytes);
+
+		String result = storage.readImage("small.png");
+
+		assertThat(result).startsWith("data:image/png;base64,");
+		assertThat(decodeDataUrl(result)).isEqualTo(pngBytes);
+	}
+
+	@Test
+	@DisplayName("readImage() resizes large image to JPEG")
+	void readImageLargeImage() throws IOException {
+		Files.write(tempDir.resolve("large.png"), createImageBytes(4096, 1024, "png"));
+
+		String result = storage.readImage("large.png");
+
+		assertThat(result).startsWith("data:image/jpeg;base64,");
+		BufferedImage resizedImage = ImageIO.read(new ByteArrayInputStream(decodeDataUrl(result)));
+		assertThat(resizedImage.getWidth()).isEqualTo(2048);
+		assertThat(resizedImage.getHeight()).isEqualTo(512);
+	}
+
+	@Test
+	@DisplayName("readImage() throws IOException for non-image files")
+	void readImageNonImage() throws IOException {
+		Files.writeString(tempDir.resolve("not-image.txt"), "not an image");
+
+		assertThatThrownBy(() -> storage.readImage("not-image.txt"))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("cannot be decoded as an image");
 	}
 
 	@Test
@@ -273,6 +313,23 @@ class LocalFileStorageTest {
 
 		List<String> result5 = storage.glob("**/test/*.java", "");
 		assertThat(result5).isEmpty();
+	}
+
+	private static byte[] createImageBytes(int width, int height, String formatName) throws IOException {
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				image.setRGB(x, y, 0x000000ff);
+			}
+		}
+		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			ImageIO.write(image, formatName, outputStream);
+			return outputStream.toByteArray();
+		}
+	}
+
+	private static byte[] decodeDataUrl(String dataUrl) {
+		return Base64.getDecoder().decode(dataUrl.substring(dataUrl.indexOf(',') + 1));
 	}
 
 	@Nested

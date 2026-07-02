@@ -78,6 +78,12 @@ public class LocalFileStorage implements StorageProvider {
 	}
 
 	@Override
+	public String readImage(String path) throws IOException {
+		Path safePath = resolveSafePath(path);
+		return ImageStorageUtil.toBase64ImageString(Files.readAllBytes(safePath), path, Files.probeContentType(safePath));
+	}
+
+	@Override
 	public List<String> readAllLines(String path) throws IOException {
 		return Files.readAllLines(resolveSafePath(path), StandardCharsets.UTF_8);
 	}

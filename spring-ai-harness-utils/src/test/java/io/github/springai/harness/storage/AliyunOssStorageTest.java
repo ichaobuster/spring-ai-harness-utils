@@ -11,9 +11,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -76,6 +80,52 @@ class AliyunOssStorageTest {
 
 		String content = storage.readString("test.md");
 		assertThat(content).isEqualTo("hello oss");
+	}
+
+	@Test
+	@DisplayName("readImage() returns small PNG as original base64 data URL")
+	void readImageSmallPng() throws IOException {
+		byte[] pngBytes = createImageBytes(16, 12, "png");
+		OSSObject ossObject = new OSSObject();
+		ObjectMetadata metadata = new ObjectMetadata();
+		metadata.setContentType("image/png");
+		ossObject.setObjectMetadata(metadata);
+		ossObject.setObjectContent(new ByteArrayInputStream(pngBytes));
+		when(ossClient.getObject(eq(bucketName), eq(prefix + "small.png"))).thenReturn(ossObject);
+
+		String result = storage.readImage("small.png");
+
+		assertThat(result).startsWith("data:image/png;base64,");
+		assertThat(decodeDataUrl(result)).isEqualTo(pngBytes);
+	}
+
+	@Test
+	@DisplayName("readImage() resizes large image to JPEG")
+	void readImageLargeImage() throws IOException {
+		OSSObject ossObject = new OSSObject();
+		ossObject.setObjectContent(new ByteArrayInputStream(createImageBytes(4096, 1024, "png")));
+		when(ossClient.getObject(eq(bucketName), eq(prefix + "large.png"))).thenReturn(ossObject);
+
+		String result = storage.readImage("large.png");
+
+		assertThat(result).startsWith("data:image/jpeg;base64,");
+		BufferedImage resizedImage = ImageIO.read(new ByteArrayInputStream(decodeDataUrl(result)));
+		assertThat(resizedImage.getWidth()).isEqualTo(2048);
+		assertThat(resizedImage.getHeight()).isEqualTo(512);
+	}
+
+	@Test
+	@DisplayName("readImage() infers MIME type from extension when metadata is missing")
+	void readImageInfersMimeTypeFromExtension() throws IOException {
+		byte[] pngBytes = createImageBytes(16, 12, "png");
+		OSSObject ossObject = new OSSObject();
+		ossObject.setObjectContent(new ByteArrayInputStream(pngBytes));
+		when(ossClient.getObject(eq(bucketName), eq(prefix + "fallback.png"))).thenReturn(ossObject);
+
+		String result = storage.readImage("fallback.png");
+
+		assertThat(result).startsWith("data:image/png;base64,");
+		assertThat(decodeDataUrl(result)).isEqualTo(pngBytes);
 	}
 
 	@Test
@@ -278,6 +328,23 @@ class AliyunOssStorageTest {
 
 		List<String> result = storage.glob("**/*.md", "sub");
 		assertThat(result).containsExactly("sub/file1.md", "sub/file2.md");
+	}
+
+	private static byte[] createImageBytes(int width, int height, String formatName) throws IOException {
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				image.setRGB(x, y, 0x000000ff);
+			}
+		}
+		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			ImageIO.write(image, formatName, outputStream);
+			return outputStream.toByteArray();
+		}
+	}
+
+	private static byte[] decodeDataUrl(String dataUrl) {
+		return Base64.getDecoder().decode(dataUrl.substring(dataUrl.indexOf(',') + 1));
 	}
 
 

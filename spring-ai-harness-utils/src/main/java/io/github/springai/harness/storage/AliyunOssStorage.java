@@ -108,6 +108,16 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	@Override
+	public String readImage(String path) throws IOException {
+		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
+			 InputStream is = ossObject.getObjectContent()) {
+			ObjectMetadata metadata = ossObject.getObjectMetadata();
+			String contentType = metadata != null ? metadata.getContentType() : null;
+			return ImageStorageUtil.toBase64ImageString(is.readAllBytes(), path, contentType);
+		}
+	}
+
+	@Override
 	public List<String> readAllLines(String path) throws IOException {
 		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
 			 InputStream is = ossObject.getObjectContent();
