@@ -205,7 +205,6 @@ class LocalFileStorageTest {
 	@DisplayName("exists() with root path variants")
 	void existsRoot() {
 		assertThat(storage.exists("")).isTrue();
-		assertThat(storage.exists("/")).isTrue();
 	}
 
 	@Test

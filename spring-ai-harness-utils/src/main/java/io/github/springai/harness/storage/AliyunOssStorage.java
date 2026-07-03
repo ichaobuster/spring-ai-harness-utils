@@ -454,11 +454,16 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	private String getFullKey(String path) {
-		if (!StringUtils.hasText(path) || path.equals("/")) {
+		if (!StringUtils.hasText(path)) {
 			return this.prefix;
 		}
+
 		if (path.startsWith("/")) {
-			path = path.substring(1);
+			throw new SecurityException("Absolute paths are not allowed: '" + path + "'");
+		}
+		
+		if (path.startsWith("./")) {
+			return this.prefix + path.substring(2);
 		}
 		return this.prefix + path;
 	}

@@ -219,11 +219,11 @@ public class LocalFileStorage implements StorageProvider {
 	}
 
 	/**
-	 * Resolves a user-supplied relative path against the memories directory,
+	 * Resolves a user-supplied relative path against the safe directory,
 	 * guarding against path traversal attacks and absolute path injection.
 	 */
 	private Path resolveSafePath(String relativePath) {
-		if (!StringUtils.hasText(relativePath) || relativePath.equals("/")) {
+		if (!StringUtils.hasText(relativePath)) {
 			return this.baseDir;
 		}
 		Path userPath = Paths.get(relativePath);
@@ -233,7 +233,7 @@ public class LocalFileStorage implements StorageProvider {
 		Path resolved = this.baseDir.resolve(userPath).normalize();
 		if (!resolved.startsWith(this.baseDir)) {
 			throw new SecurityException(
-					"Path traversal attempt detected: '" + relativePath + "' escapes the memories directory");
+					"Path traversal attempt detected: '" + relativePath + "' escapes the safe directory");
 		}
 		return resolved;
 	}

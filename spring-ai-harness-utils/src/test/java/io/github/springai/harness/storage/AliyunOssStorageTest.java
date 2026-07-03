@@ -17,13 +17,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -178,6 +174,37 @@ class AliyunOssStorageTest {
 	}
 
 	@Test
+	@DisplayName("path starting with / throws SecurityException")
+	void pathStartsWithSlashThrowsSecurityException() {
+		assertThatThrownBy(() -> storage.exists("/test.txt"))
+				.isInstanceOf(SecurityException.class)
+				.hasMessage("Absolute paths are not allowed: '/test.txt'");
+
+		assertThatThrownBy(() -> storage.readString("/dir/file.txt"))
+				.isInstanceOf(SecurityException.class)
+				.hasMessage("Absolute paths are not allowed: '/dir/file.txt'");
+
+		assertThatThrownBy(() -> storage.exists("/"))
+				.isInstanceOf(SecurityException.class)
+				.hasMessage("Absolute paths are not allowed: '/'");
+	}
+
+	@Test
+	@DisplayName("path starting with ./ strips dot-slash prefix")
+	void pathStartsWithDotSlashStripsPrefix() throws IOException {
+		when(ossClient.doesObjectExist(bucketName, prefix + "test.md")).thenReturn(true);
+		assertThat(storage.exists("./test.md")).isTrue();
+
+		OSSObject ossObject = new OSSObject();
+		ossObject.setObjectContent(new ByteArrayInputStream("hello oss".getBytes(StandardCharsets.UTF_8)));
+		when(ossClient.getObject(eq(bucketName), eq(prefix + "test.md"))).thenReturn(ossObject);
+		assertThat(storage.readString("./test.md")).isEqualTo("hello oss");
+
+		storage.writeString("./new.md", "content");
+		verify(ossClient).putObject(eq(bucketName), eq(prefix + "new.md"), any(ByteArrayInputStream.class));
+	}
+
+	@Test
 	@DisplayName("isDirectory() logic")
 	void isDirectory() {
 		ObjectListing listing = new ObjectListing();
@@ -232,7 +259,7 @@ class AliyunOssStorageTest {
 		ObjectListing listing = new ObjectListing();
 		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(listing);
 
-		storage.listDirectory("/");
+		storage.listDirectory("");
 		storage.listDirectory("sub");
 		verify(ossClient, times(2)).listObjects(any(ListObjectsRequest.class));
 	}
