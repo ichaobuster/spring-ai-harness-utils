@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author: ichaobuster
+ * @author ichaobuster
  */
 @Configuration
 @EnableConfigurationProperties(AliyunOssProperties.class)

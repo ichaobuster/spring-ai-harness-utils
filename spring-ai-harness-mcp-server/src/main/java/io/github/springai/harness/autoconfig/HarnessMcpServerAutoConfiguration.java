@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * HarnessMcpServerAutoConfiguration
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Configuration
 @EnableConfigurationProperties({HarnessMcpServerProperties.class})

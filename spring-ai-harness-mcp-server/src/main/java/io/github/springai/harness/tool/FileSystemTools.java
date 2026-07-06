@@ -1,9 +1,7 @@
 package io.github.springai.harness.tool;
 
-import com.aliyun.oss.OSS;
-import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
-import io.github.springai.harness.storage.AliyunOssStorage;
 import io.github.springai.harness.storage.StorageProvider;
+import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
@@ -12,10 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.servlet.function.ServerRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -32,7 +28,7 @@ public class FileSystemTools {
 	private static final Integer GREP_MAX_OUTPUT_LENGTH = 50_000;
 
 	@Autowired
-	private io.github.springai.harness.storage.StorageProviderFactory storageProviderFactory;
+	private StorageProviderFactory storageProviderFactory;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
 		return storageProviderFactory.getStorageProvider(context);
@@ -70,7 +66,7 @@ public class FileSystemTools {
 			}
 
 			// Default values
-			int maxLines = limit != null ? limit : storageProvider.MAX_LINES;
+			int maxLines = limit != null ? limit : StorageProvider.MAX_LINES;
 			int realOffset = (offset == null || offset < 1) ? 1 : offset;
 
 			List<String> rawLines = storageProvider.readAllLines(filePath);
@@ -86,7 +82,7 @@ public class FileSystemTools {
 			List<String> lines = rawLines.stream()
 					.skip(realOffset - 1)
 					.limit(maxLines)
-					.map(line -> String.format("%6d\t%s", currentLine.getAndIncrement(), line.length() > storageProvider.MAX_LINE_LENGTH ? line.substring(0, storageProvider.MAX_LINE_LENGTH) + "... (line truncated)" : line))
+					.map(line -> String.format("%6d\t%s", currentLine.getAndIncrement(), line.length() > StorageProvider.MAX_LINE_LENGTH ? line.substring(0, StorageProvider.MAX_LINE_LENGTH) + "... (line truncated)" : line))
 					.collect(Collectors.toList());
 
 			StringBuilder result = new StringBuilder();
@@ -114,7 +110,7 @@ public class FileSystemTools {
 		- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
 		- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 		- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-		- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.	
+		- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
 		""")
 	public String write(
 			McpTransportContext context,
@@ -154,7 +150,7 @@ public class FileSystemTools {
 		- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 		- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 		- The edit will FAIL if `oldString` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`.
-		- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.	
+		- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
 		""")
 	public String edit(
 			McpTransportContext context,
@@ -228,7 +224,8 @@ public class FileSystemTools {
         - Use this tool when you need to find files by name patterns
         - When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
         - You can call multiple tools in a single response. It is always better to speculatively perform multiple searches in parallel if they are potentially useful.
-		""")
+        """)
+
 	public String glob(
 			McpTransportContext context,
 			@McpToolParam(description = "The glob pattern to match files against") String pattern,
@@ -248,7 +245,7 @@ public class FileSystemTools {
 
 			List<String> result = storageProvider.glob(pattern, path);
 
-			return result.stream().collect(Collectors.joining("\n"));
+			return String.join("\n", result);
 
 		} catch (Exception e) {
 			return "Error executing glob: " + e.getMessage();
@@ -300,7 +297,7 @@ public class FileSystemTools {
 		if (CollectionUtils.isEmpty(result)) {
 			return "No matches found for pattern: " + pattern;
 		}
-		String formattedResult = result.stream().collect(Collectors.joining("\n"));
+		String formattedResult = String.join("\n", result);
 		// Truncate if too long
 		if (formattedResult.length() > GREP_MAX_OUTPUT_LENGTH) {
 			formattedResult = formattedResult.substring(0, GREP_MAX_OUTPUT_LENGTH) + "\n... (output truncated, "

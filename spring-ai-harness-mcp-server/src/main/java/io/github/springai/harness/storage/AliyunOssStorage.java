@@ -203,7 +203,7 @@ public class AliyunOssStorage implements StorageProvider {
 				.filter(obj -> !obj.getKey().endsWith("/"))
 				.filter(obj -> pathMatcher.match(matcherPattern, obj.getKey()))
 				.sorted((o1, o2) -> o2.getLastModified().compareTo(o1.getLastModified()))
-				.toList();
+				.collect(Collectors.toList());
 
 		return matchedSummaries.stream()
 				.limit(MAX_RESULT)
