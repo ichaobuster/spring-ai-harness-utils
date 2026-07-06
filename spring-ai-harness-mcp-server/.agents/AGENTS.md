@@ -230,6 +230,7 @@ MCP Skill 管理入口类，将 Skill 能力独立抽取，同时暴露 **MCP To
 | `GET` | `/api/v1/workspace/files?path=` | 列出工作区目录文件 | 返回 `List<FileItemDto>` |
 | `GET` | `/api/v1/workspace/files/content?path=` | 读取/下载文件内容 | 返回文本内容 |
 | `POST` | `/api/v1/workspace/files/upload?path=` | 上传/写入文件 | Body 传文本，触发自动前置快照 |
+| `POST` | `/api/v1/workspace/files/move?fromPath=&toPath=` | 移动/重命名文件或目录 | 触发自动前置快照 |
 | `DELETE` | `/api/v1/workspace/files?path=&trash=true` | 删除或移入回收站 | 默认移入回收站，触发自动前置快照 |
 | `GET` | `/api/v1/workspace/snapshots?path=` | 查询文件历史快照列表 | 返回 `List<SnapshotInfo>` |
 | `POST` | `/api/v1/workspace/rewind/{snapshotId}` | 一键回滚文件到特定快照 | 自动触发安全兜底快照 |
@@ -242,6 +243,7 @@ MCP Skill 管理入口类，将 Skill 能力独立抽取，同时暴露 **MCP To
 |-----------|---------|------|------|
 | `GET` | `/api/v1/admin/workspaces` | 列出 OSS 所有工作区空间列表 | 返回 `List<WorkspaceInfoDto>` |
 | `GET` | `/api/v1/admin/workspaces/{workspaceKey}/files?path=` | 管理员列出特定工作区文件 | 返回 `List<FileItemDto>` |
+| `POST` | `/api/v1/admin/workspaces/{workspaceKey}/files/move?fromPath=&toPath=` | 管理员移动/重命名特定工作区文件或目录 | 重命名/移动指定路径 |
 | `DELETE` | `/api/v1/admin/workspaces/{workspaceKey}/files?path=` | 管理员强制删除特定工作区文件 | 清理指定文件 |
 
 包路径：`snapshot/`

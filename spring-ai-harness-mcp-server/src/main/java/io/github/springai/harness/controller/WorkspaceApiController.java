@@ -150,4 +150,23 @@ public class WorkspaceApiController {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
 		}
 	}
+
+	@PostMapping("/files/move")
+	public ResponseEntity<?> moveFile(
+			HttpServletRequest request,
+			@RequestParam("fromPath") String fromPath,
+			@RequestParam("toPath") String toPath) {
+		try {
+			StorageProvider storage = getStorageProvider(request);
+			if (!storage.exists(fromPath)) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Source path not found: " + fromPath));
+			}
+			snapshotProvider.createSnapshot(storage, fromPath, "MOVE");
+			storage.rename(fromPath, toPath);
+			return ResponseEntity.ok(Map.of("message", "File moved successfully", "fromPath", fromPath, "toPath", toPath));
+		} catch (Exception e) {
+			log.error("Failed to move file from '{}' to '{}': {}", fromPath, toPath, e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+		}
+	}
 }

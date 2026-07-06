@@ -284,4 +284,35 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error").value("Rewind error"));
 	}
+
+	@Test
+	@DisplayName("Should move file successfully")
+	void shouldMoveFileSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("old.txt")).thenReturn(true);
+
+		mockMvc.perform(post("/api/v1/workspace/files/move")
+						.param("fromPath", "old.txt")
+						.param("toPath", "new.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("File moved successfully"));
+
+		verify(snapshotProvider).createSnapshot(storageProvider, "old.txt", "MOVE");
+		verify(storageProvider).rename("old.txt", "new.txt");
+	}
+
+	@Test
+	@DisplayName("Should return 404 when move file source path does not exist")
+	void shouldReturn404WhenMoveFileSourceNotFound() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+		mockMvc.perform(post("/api/v1/workspace/files/move")
+						.param("fromPath", "missing.txt")
+						.param("toPath", "new.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error").value("Source path not found: missing.txt"));
+	}
 }

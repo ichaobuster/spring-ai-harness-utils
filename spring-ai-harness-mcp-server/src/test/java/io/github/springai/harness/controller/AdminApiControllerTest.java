@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -194,5 +195,22 @@ class AdminApiControllerTest {
 						.header("X-Admin-Token", "admin-secret"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error").value("Delete permission error"));
+	}
+
+	@Test
+	@DisplayName("Should move workspace file for admin when source exists")
+	void shouldMoveWorkspaceFileWhenAdminTokenValid() throws Exception {
+		when(properties.getAdminToken()).thenReturn("admin-secret");
+		doReturn(adminStorageProvider).when(controller).createStorageProvider("sys1-agent1-user1");
+		when(adminStorageProvider.exists("old.txt")).thenReturn(true);
+
+		mockMvc.perform(post("/api/v1/admin/workspaces/sys1-agent1-user1/files/move")
+						.param("fromPath", "old.txt")
+						.param("toPath", "new.txt")
+						.header("X-Admin-Token", "admin-secret"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("File moved successfully"));
+
+		verify(adminStorageProvider).rename("old.txt", "new.txt");
 	}
 }

@@ -132,4 +132,28 @@ public class AdminApiController {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
 		}
 	}
+
+	@PostMapping("/workspaces/{workspaceKey}/files/move")
+	public ResponseEntity<?> moveWorkspaceFile(
+			HttpServletRequest request,
+			@PathVariable("workspaceKey") String workspaceKey,
+			@RequestParam("fromPath") String fromPath,
+			@RequestParam("toPath") String toPath) {
+		try {
+			checkAdminAuth(request);
+
+			StorageProvider storage = createStorageProvider(workspaceKey);
+			if (!storage.exists(fromPath)) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Source path not found: " + fromPath));
+			}
+
+			storage.rename(fromPath, toPath);
+			return ResponseEntity.ok(Map.of("message", "File moved successfully", "workspaceKey", workspaceKey, "fromPath", fromPath, "toPath", toPath));
+		} catch (SecurityException e) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+		} catch (Exception e) {
+			log.error("Failed to move file for admin workspace '{}' from '{}' to '{}': {}", workspaceKey, fromPath, toPath, e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+		}
+	}
 }
