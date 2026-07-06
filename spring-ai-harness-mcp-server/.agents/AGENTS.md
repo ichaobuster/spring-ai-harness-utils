@@ -135,13 +135,17 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── SkillInfo.java                     # Skill 描述元数据 Record (basePath, frontMatter, content)
     │   │   │   ├── SkillProvider.java                 # Skill 发现与读取接口
     │   │   │   └── DefaultSkillProvider.java          # Workspace Skill 扫描与读取实现类
+    │   │   ├── snapshot/
+    │   │   │   ├── SnapshotInfo.java                  # 快照描述元数据 Record (snapshotId, filePath, action, timestamp)
+    │   │   │   ├── SnapshotProvider.java              # 快照创建、列表与恢复接口
+    │   │   │   └── DefaultSnapshotProvider.java       # 基于 .snapshots/ 的快照提供者实现
     │   │   ├── storage/
     │   │   │   ├── StorageProvider.java               # 存储抽象接口
     │   │   │   ├── StorageProviderFactory.java        # 存储工厂抽象接口
     │   │   │   ├── DefaultStorageProviderFactory.java # 默认存储工厂实现
     │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
     │   │   └── tool/
-    │   │       ├── FileSystemTools.java               # MCP 文件工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash）
+    │   │       ├── FileSystemTools.java               # MCP 文件工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash/ListSnapshots/Rewind）
     │   │       └── SkillTools.java                    # MCP Skill 工具与 Resource 定义（ListSkills/ReadSkill/skill://URI）
     │   └── resources/
     │       └── application.properties                 # 默认配置
@@ -151,6 +155,8 @@ spring-ai-harness-mcp-server/
             │   └── HeaderAuthenticationProviderTest.java
             ├── skill/
             │   └── DefaultSkillProviderTest.java
+            ├── snapshot/
+            │   └── DefaultSnapshotProviderTest.java
             ├── storage/
             │   └── AliyunOssStorageTest.java
             └── tool/
@@ -166,17 +172,19 @@ spring-ai-harness-mcp-server/
 
 文件：`tool/FileSystemTools.java`
 
-MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的文件系统能力：
+MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的文件系统与快照回滚能力：
 
 | 工具名 | 方法 | 功能 |
 |--------|------|------|
 | `Read` | `read(ctx, filePath, offset, limit)` | 读取文件内容，支持分页，输出带行号（`cat -n` 格式）|
-| `Write` | `write(ctx, filePath, content)` | 创建或覆写文件 |
-| `Edit` | `edit(ctx, filePath, oldString, newString, replaceAll)` | 精确字符串替换，支持单次/全部替换 |
+| `Write` | `write(ctx, filePath, content)` | 创建或覆写文件（自动触发操作前快照） |
+| `Edit` | `edit(ctx, filePath, oldString, newString, replaceAll)` | 精确字符串替换，支持单次/全部替换（自动触发操作前快照） |
 | `Glob` | `glob(ctx, pattern, path)` | Glob 模式文件搜索，返回最多 100 个结果 |
 | `Grep` | `grep(ctx, pattern, path, glob, outputMode, ...)` | 正则搜索，支持上下文行、行号、分页等 |
 | `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
-| `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
+| `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`，自动触发操作前快照） |
+| `ListSnapshots` | `listSnapshots(ctx, filePath)` | 查询历史快照列表，可按文件路径过滤 |
+| `Rewind` | `rewind(ctx, snapshotId)` | 快速撤回/恢复文件到指定快照状态 |
 
 **关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
 
@@ -200,7 +208,17 @@ MCP Skill 管理入口类，将 Skill 能力独立抽取，同时暴露 **MCP To
 | `skill://list` | `listSkillsResource(ctx)` | `text/plain` | 通过 MCP Resource 协议直接拉取全量 Skills 元数据列表 |
 | `skill://{skillName}` | `readSkillResource(ctx, skillName)` | `text/markdown` | 通过 `skill://{skillName}` URI 协议标准读取指定 Skill 内容 |
 
-### 2. Skills Module (Skills 管理模块)
+### 3. Snapshot Module (文件快照与撤回模块)
+
+包路径：`snapshot/`
+
+- **`SnapshotInfo`**：快照元数据 Record（`snapshotId`, `filePath`, `action`, `snapshotPath`, `timestamp`）。
+- **`SnapshotProvider`**：快照服务抽象接口，定义 `createSnapshot`, `listSnapshots`, `rewind` 契约。
+- **`DefaultSnapshotProvider`**：基于 `.snapshots/{snapshotId}/` 路径的机制实现。
+  - **自动前置快照**：在 `Write`（修改既有文件）、`Edit`、`Trash` 真正执行修改前自动生成快照。
+  - **元数据存储**：在 `.snapshots/{snapshotId}/meta.txt` 中记录 `filePath`、`action` 及毫秒时间戳。
+  - **安全恢复与双重兜底**：调用 `rewind` 恢复旧快照时，系统会在覆盖当前文件前自动再生成一个 `action=REWIND` 的安全快照，实现随时撤回与再撤回。
+  - **路径隐藏**：`.snapshots/` 被硬编码计入 `StorageProvider.IGNORED_PATH_PATTERN`，避免污染普通目录列表。
 
 包路径：`skill/`
 

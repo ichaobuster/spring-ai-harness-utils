@@ -1,5 +1,7 @@
 package io.github.springai.harness.tool;
 
+import io.github.springai.harness.snapshot.SnapshotInfo;
+import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -29,6 +31,9 @@ public class FileSystemTools {
 
 	@Autowired
 	private StorageProviderFactory storageProviderFactory;
+
+	@Autowired
+	private SnapshotProvider snapshotProvider;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
 		return storageProviderFactory.getStorageProvider(context);
@@ -124,6 +129,9 @@ public class FileSystemTools {
 			// Check if file already exists
 			boolean fileExists = storageProvider.exists(filePath);
 
+			// Create pre-operation snapshot if file exists
+			snapshotProvider.createSnapshot(storageProvider, filePath, "WRITE");
+
 			// Write content to file
 			storageProvider.writeString(filePath, content);
 
@@ -175,6 +183,9 @@ public class FileSystemTools {
 			}
 
 			// Read the entire file content preserving exact line endings
+			// Create pre-operation snapshot before modifying file
+			snapshotProvider.createSnapshot(storageProvider, filePath, "EDIT");
+
 			String originalContent = storageProvider.readString(filePath);
 
 			// Count occurrences
@@ -382,6 +393,9 @@ public class FileSystemTools {
 				return "Error: File or directory does not exist: " + filePath;
 			}
 
+			// Create pre-operation snapshot before moving to trash
+			snapshotProvider.createSnapshot(storageProvider, filePath, "TRASH");
+
 			storageProvider.trash(filePath);
 			return String.format("Successfully moved to trash: %s", filePath);
 
@@ -389,6 +403,62 @@ public class FileSystemTools {
 			return "Error moving file or directory to trash: " + e.getMessage();
 		} catch (Exception e) {
 			return "Error: " + e.getMessage();
+		}
+	}
+
+	// @formatter:off
+	@McpTool(name = "ListSnapshots", description = """
+		Lists historical file snapshots captured before destructive operations (Write, Edit, Trash).
+		Returns snapshot IDs, file paths, actions, and creation timestamps.
+		""")
+	public String listSnapshots(
+			McpTransportContext context,
+			@McpToolParam(description = "Optional file path to filter snapshots by", required = false) String filePath) { // @formatter:on
+		try {
+			StorageProvider storageProvider = getStorageProvider(context);
+			List<SnapshotInfo> snapshots = snapshotProvider.listSnapshots(storageProvider, filePath);
+			if (snapshots.isEmpty()) {
+				return "No snapshots found.";
+			}
+
+			StringBuilder result = new StringBuilder();
+			result.append("Available File Snapshots:\n\n");
+			result.append(String.format("%-25s %-10s %-30s %s\n", "SNAPSHOT ID", "ACTION", "FILE PATH", "CREATED AT"));
+			result.append("-".repeat(85)).append("\n");
+
+			for (SnapshotInfo snap : snapshots) {
+				java.time.LocalDateTime dt = java.time.LocalDateTime.ofInstant(
+						java.time.Instant.ofEpochMilli(snap.timestamp()),
+						java.time.ZoneId.systemDefault()
+				);
+				result.append(String.format("%-25s %-10s %-30s %s\n", snap.snapshotId(), snap.action(), snap.filePath(), dt));
+			}
+
+			return result.toString();
+		} catch (Exception e) {
+			return "Error listing snapshots: " + e.getMessage();
+		}
+	}
+
+	// @formatter:off
+	@McpTool(name = "Rewind", description = """
+		Restores/rewinds a file to a previous snapshot state using a snapshot ID.
+
+		Usage:
+		- Provide the `snapshotId` returned by `ListSnapshots`.
+		- The file will be restored to its pre-operation snapshot state, and a safety snapshot of the current state will be created.
+		""")
+	public String rewind(
+			McpTransportContext context,
+			@McpToolParam(description = "The snapshot ID to restore (e.g. 1783354800000_1)") String snapshotId) { // @formatter:on
+		try {
+			if (snapshotId == null || snapshotId.isBlank()) {
+				return "Error: snapshotId must not be empty.";
+			}
+			StorageProvider storageProvider = getStorageProvider(context);
+			return snapshotProvider.rewind(storageProvider, snapshotId.trim());
+		} catch (Exception e) {
+			return "Error rewinding snapshot: " + e.getMessage();
 		}
 	}
 

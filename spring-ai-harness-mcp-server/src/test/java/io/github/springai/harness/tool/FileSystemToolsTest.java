@@ -45,7 +45,7 @@ class FileSystemToolsTest {
 	private ServerRequest serverRequest;
 
 	@Mock
-	private ServerRequest.Headers headers;
+	private io.github.springai.harness.snapshot.SnapshotProvider snapshotProvider;
 
 	private HarnessMcpServerProperties properties;
 
@@ -66,6 +66,7 @@ class FileSystemToolsTest {
 
 		fileSystemTools = new FileSystemTools();
 		ReflectionTestUtils.setField(fileSystemTools, "storageProviderFactory", factory);
+		ReflectionTestUtils.setField(fileSystemTools, "snapshotProvider", snapshotProvider);
 
 		spyFileSystemTools = spy(fileSystemTools);
 
@@ -635,6 +636,63 @@ class FileSystemToolsTest {
 
 			verify(storageProvider).trash("foo.txt");
 			assertThat(result).isEqualTo("Successfully moved to trash: foo.txt");
+		}
+	}
+
+	@Nested
+	@DisplayName("ListSnapshots Tool Tests")
+	class ListSnapshotsToolTests {
+
+		@Test
+		@DisplayName("Should return no snapshots message when empty")
+		void shouldReturnNoSnapshotsMessage() throws IOException {
+			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+			when(snapshotProvider.listSnapshots(any(), any())).thenReturn(Collections.emptyList());
+
+			String result = spyFileSystemTools.listSnapshots(context, null);
+
+			assertThat(result).isEqualTo("No snapshots found.");
+		}
+
+		@Test
+		@DisplayName("Should return formatted snapshots list")
+		void shouldReturnFormattedSnapshotsList() throws IOException {
+			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+			when(snapshotProvider.listSnapshots(any(), any())).thenReturn(List.of(
+					new io.github.springai.harness.snapshot.SnapshotInfo("snap1", "foo.txt", "EDIT", ".snapshots/snap1/foo.txt", 1000000L)
+			));
+
+			String result = spyFileSystemTools.listSnapshots(context, "foo.txt");
+
+			assertThat(result)
+					.contains("Available File Snapshots:")
+					.contains("snap1")
+					.contains("EDIT")
+					.contains("foo.txt");
+		}
+	}
+
+	@Nested
+	@DisplayName("Rewind Tool Tests")
+	class RewindToolTests {
+
+		@Test
+		@DisplayName("Should return error when snapshotId is blank")
+		void shouldReturnErrorWhenSnapshotIdIsBlank() {
+			String result = spyFileSystemTools.rewind(context, "   ");
+
+			assertThat(result).isEqualTo("Error: snapshotId must not be empty.");
+		}
+
+		@Test
+		@DisplayName("Should rewind to snapshot successfully")
+		void shouldRewindSnapshotSuccessfully() throws IOException {
+			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+			when(snapshotProvider.rewind(any(), eq("snap1"))).thenReturn("Successfully rewound file 'foo.txt' to snapshot state [snap1].");
+
+			String result = spyFileSystemTools.rewind(context, "snap1");
+
+			assertThat(result).contains("Successfully rewound file 'foo.txt' to snapshot state [snap1].");
 		}
 	}
 }

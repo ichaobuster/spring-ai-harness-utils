@@ -6,6 +6,8 @@ import io.github.springai.harness.auth.AuthenticationProvider;
 import io.github.springai.harness.auth.HeaderAuthenticationProvider;
 import io.github.springai.harness.skill.DefaultSkillProvider;
 import io.github.springai.harness.skill.SkillProvider;
+import io.github.springai.harness.snapshot.DefaultSnapshotProvider;
+import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -45,6 +47,12 @@ public class HarnessMcpServerAutoConfiguration {
 	@ConditionalOnMissingBean
 	public SkillProvider skillProvider(StorageProviderFactory storageProviderFactory) {
 		return new DefaultSkillProvider(storageProviderFactory);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	public SnapshotProvider snapshotProvider() {
+		return new DefaultSnapshotProvider();
 	}
 
 	@Bean
