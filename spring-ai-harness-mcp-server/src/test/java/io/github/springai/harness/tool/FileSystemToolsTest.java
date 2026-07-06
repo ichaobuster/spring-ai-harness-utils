@@ -1,8 +1,10 @@
 package io.github.springai.harness.tool;
 
 import com.aliyun.oss.OSS;
+import io.github.springai.harness.auth.HeaderAuthenticationProvider;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.storage.AliyunOssStorage;
+import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProvider;
 import io.modelcontextprotocol.common.McpTransportContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,9 +61,11 @@ class FileSystemToolsTest {
 		properties.setOssBucket("test-bucket");
 		properties.setOssPrefix("harness/");
 
+		HeaderAuthenticationProvider authProvider = new HeaderAuthenticationProvider();
+		DefaultStorageProviderFactory factory = new DefaultStorageProviderFactory(ossClient, properties, authProvider);
+
 		fileSystemTools = new FileSystemTools();
-		ReflectionTestUtils.setField(fileSystemTools, "ossClient", ossClient);
-		ReflectionTestUtils.setField(fileSystemTools, "properties", properties);
+		ReflectionTestUtils.setField(fileSystemTools, "storageProviderFactory", factory);
 
 		spyFileSystemTools = spy(fileSystemTools);
 
@@ -82,27 +86,27 @@ class FileSystemToolsTest {
 	class GetStorageProviderTests {
 
 		@Test
-		@DisplayName("Should throw IllegalArgumentException when ServerRequest is missing in context")
+		@DisplayName("Should throw AuthenticationException when ServerRequest is missing in context")
 		void shouldThrowWhenServerRequestMissing() {
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(context))
-					.isInstanceOf(IllegalArgumentException.class)
+					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
 		@Test
-		@DisplayName("Should throw IllegalArgumentException when headers are null")
+		@DisplayName("Should throw AuthenticationException when headers are null")
 		void shouldThrowWhenHeadersNull() {
 			ServerRequest req = mock(ServerRequest.class);
 			when(req.headers()).thenReturn(null);
 			McpTransportContext ctx = McpTransportContext.create(Map.of(McpTransportContext.KEY, req));
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(IllegalArgumentException.class)
+					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
 		@Test
-		@DisplayName("Should throw IllegalArgumentException when Authorization header is missing")
+		@DisplayName("Should throw AuthenticationException when Authorization header is missing")
 		void shouldThrowWhenAuthHeaderMissing() {
 			ServerRequest req = mock(ServerRequest.class);
 			ServerRequest.Headers hdrs = mock(ServerRequest.Headers.class);
@@ -111,30 +115,30 @@ class FileSystemToolsTest {
 			McpTransportContext ctx = McpTransportContext.create(Map.of(McpTransportContext.KEY, req));
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(IllegalArgumentException.class)
+					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
 		@Test
-		@DisplayName("Should throw IllegalArgumentException when Authorization header format is invalid")
+		@DisplayName("Should throw AuthenticationException when Authorization header format is invalid")
 		void shouldThrowWhenAuthHeaderFormatInvalid() {
 			McpTransportContext ctx = createValidContext("invalid-auth");
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(IllegalArgumentException.class)
+					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
 					.hasMessage("Authorization header format error");
 		}
 
 		@Test
 		@DisplayName("Should create AliyunOssStorage when Authorization header format is valid")
 		void shouldCreateStorageProviderWhenValid() {
-			McpTransportContext ctx = createValidContext("tenant-project-env");
+			McpTransportContext ctx = createValidContext("sys1-agent2-user3");
 
 			StorageProvider provider = fileSystemTools.getStorageProvider(ctx);
 
 			assertThat(provider).isInstanceOf(AliyunOssStorage.class);
 			String prefix = (String) ReflectionTestUtils.getField(provider, "prefix");
-			assertThat(prefix).isEqualTo("harness/tenant/project/env/");
+			assertThat(prefix).isEqualTo("harness/sys1/agent2/user3/");
 		}
 	}
 

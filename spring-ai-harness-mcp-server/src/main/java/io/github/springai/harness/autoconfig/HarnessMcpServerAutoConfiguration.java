@@ -1,10 +1,16 @@
 package io.github.springai.harness.autoconfig;
 
+import com.aliyun.oss.OSS;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.springai.harness.auth.AuthenticationProvider;
+import io.github.springai.harness.auth.HeaderAuthenticationProvider;
+import io.github.springai.harness.storage.DefaultStorageProviderFactory;
+import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +26,18 @@ import java.util.Map;
 @Configuration
 @EnableConfigurationProperties({HarnessMcpServerProperties.class})
 public class HarnessMcpServerAutoConfiguration {
+
+	@Bean
+	@ConditionalOnMissingBean
+	public AuthenticationProvider authenticationProvider() {
+		return new HeaderAuthenticationProvider();
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	public StorageProviderFactory storageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider) {
+		return new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider);
+	}
 
 	@Bean
 	@Primary

@@ -114,6 +114,11 @@ spring-ai-harness-mcp-server/
 └── src/
     ├── main/
     │   ├── java/io/github/springai/harness/
+    │   │   ├── auth/
+    │   │   │   ├── AuthenticationException.java       # 认证异常类
+    │   │   │   ├── AuthenticationProvider.java        # 认证抽象接口
+    │   │   │   ├── HeaderAuthenticationProvider.java  # 请求头认证实现类
+    │   │   │   └── WorkspaceIdentity.java             # 工作区身份信息 record
     │   │   ├── autoconfig/
     │   │   │   ├── AliyunOssAutoConfiguration.java   # OSS 客户端自动配置
     │   │   │   ├── AliyunOssProperties.java          # OSS 连接配置属性
@@ -121,13 +126,17 @@ spring-ai-harness-mcp-server/
     │   │   │   └── HarnessMcpServerProperties.java   # MCP Server 配置属性
     │   │   ├── storage/
     │   │   │   ├── StorageProvider.java               # 存储抽象接口
+    │   │   │   ├── StorageProviderFactory.java        # 存储工厂抽象接口
+    │   │   │   ├── DefaultStorageProviderFactory.java # 默认存储工厂实现
     │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
     │   │   └── tool/
-    │   │       └── FileSystemTools.java               # MCP 工具定义（Read/Write/Edit/Glob/Grep）
+    │   │       └── FileSystemTools.java               # MCP 工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash）
     │   └── resources/
     │       └── application.properties                 # 默认配置
     └── test/
         └── java/io/github/springai/harness/
+            ├── auth/
+            │   └── HeaderAuthenticationProviderTest.java
             ├── storage/
             │   └── AliyunOssStorageTest.java
             └── tool/
@@ -154,11 +163,19 @@ MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全
 | `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
 | `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
 
-**关键安全逻辑**：`getStorageProvider(McpTransportContext)` 方法从每个请求的 `Authorization` 头中解析出 `{system}-{agent}-{user}` 三元组，动态构建隔离的 `AliyunOssStorage` 实例。
+**关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
 
-### 2. StorageProvider
+### 2. Authentication Module (认证模块)
 
-文件：`storage/StorageProvider.java`
+包路径：`auth/`
+
+- **`WorkspaceIdentity`**：身份信息 Record (`system`, `agent`, `user`)，提供 `getWorkspacePath(prefix)` 方法生成格式化的 OSS 前缀路径。
+- **`AuthenticationProvider`**：认证抽象接口，定义 `authenticate(ServerRequest)` 契约。
+- **`HeaderAuthenticationProvider`**：从 `Authorization` Header 解析身份，支持 `system-agent-user` 及 `system/agent/user` 格式（兼容 `Bearer` 前缀）。
+
+### 3. StorageProvider & StorageProviderFactory
+
+包路径：`storage/`
 
 存储抽象接口，定义了所有文件操作契约。关键常量：
 

@@ -32,25 +32,10 @@ public class FileSystemTools {
 	private static final Integer GREP_MAX_OUTPUT_LENGTH = 50_000;
 
 	@Autowired
-	private OSS ossClient;
-
-	@Autowired
-	private HarnessMcpServerProperties properties;
+	private io.github.springai.harness.storage.StorageProviderFactory storageProviderFactory;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
-		var serverRequest = (ServerRequest) context.get(McpTransportContext.KEY);
-		if (serverRequest == null || serverRequest.headers() == null || CollectionUtils.isEmpty(serverRequest.headers().header("Authorization"))) {
-			throw new IllegalArgumentException("Missing Authorization header");
-		}
-		String authKey = serverRequest.headers().firstHeader("Authorization");
-		// TODO 解析key
-		String[] authKeys = authKey.split("-");
-		if (authKeys.length != 3) {
-			throw new IllegalArgumentException("Authorization header format error");
-		}
-
-		String workspaceKey = this.properties.getOssPrefix() + Arrays.stream(authKeys).collect(Collectors.joining("/"));
-		return new AliyunOssStorage(ossClient, this.properties.getOssBucket(), workspaceKey);
+		return storageProviderFactory.getStorageProvider(context);
 	}
 
 	// @formatter:off
@@ -340,7 +325,7 @@ public class FileSystemTools {
 
 		StorageProvider storageProvider = getStorageProvider(context);
 		try {
-			String targetPath = (path == null || path.trim().isEmpty()) ? "" : path;
+			String targetPath = (path == null || path.isBlank()) ? "" : path;
 
 			if (!storageProvider.exists(targetPath)) {
 				return "Error: Path does not exist: " + (targetPath.isEmpty() ? "." : targetPath);
@@ -355,12 +340,13 @@ public class FileSystemTools {
 					.filter(item -> !storageProvider.isIgnoredPath("/" + item.path() + "/"))
 					.collect(Collectors.toList());
 
+			String displayPath = targetPath.isEmpty() ? "." : targetPath;
 			if (items.isEmpty()) {
-				return "Directory is empty: " + (targetPath.isEmpty() ? "." : targetPath);
+				return "Directory is empty: " + displayPath;
 			}
 
 			StringBuilder result = new StringBuilder();
-			result.append(String.format("Directory listing for: %s\n\n", targetPath.isEmpty() ? "." : targetPath));
+			result.append(String.format("Directory listing for: %s\n\n", displayPath));
 			result.append(String.format("%-10s %-12s %-24s %s\n", "TYPE", "SIZE", "MODIFIED", "NAME"));
 			result.append("-".repeat(60)).append("\n");
 
