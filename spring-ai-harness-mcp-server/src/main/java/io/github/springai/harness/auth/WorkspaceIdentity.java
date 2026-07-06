@@ -19,7 +19,7 @@ public record WorkspaceIdentity(String system, String agent, String user) {
 	/**
 	 * Constructs full OSS workspace path with prefix.
 	 * e.g., prefix = "mcp/workspaces/", system = "sys", agent = "ag", user = "usr"
-	 * -> "mcp/workspaces/sys/ag/usr/"
+	 * -> "mcp/workspaces/sys-ag-usr/"
 	 *
 	 * @param prefix the OSS prefix
 	 * @return workspace path
@@ -29,6 +29,6 @@ public record WorkspaceIdentity(String system, String agent, String user) {
 		if (basePrefix.startsWith("/")) {
 			basePrefix = basePrefix.substring(1);
 		}
-		return basePrefix + system + "/" + agent + "/" + user + "/";
+		return basePrefix + system + "-" + agent + "-" + user + "/";
 	}
 }

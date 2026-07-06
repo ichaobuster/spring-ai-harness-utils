@@ -138,7 +138,7 @@ class FileSystemToolsTest {
 
 			assertThat(provider).isInstanceOf(AliyunOssStorage.class);
 			String prefix = (String) ReflectionTestUtils.getField(provider, "prefix");
-			assertThat(prefix).isEqualTo("harness/sys1/agent2/user3/");
+			assertThat(prefix).isEqualTo("harness/sys1-agent2-user3/");
 		}
 	}
 

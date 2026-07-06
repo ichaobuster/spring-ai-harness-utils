@@ -116,4 +116,11 @@ class HeaderAuthenticationProviderTest {
 		assertThat(identity.agent()).isEqualTo("agent2");
 		assertThat(identity.user()).isEqualTo("user3");
 	}
+
+	@Test
+	@DisplayName("Should generate hyphen-separated workspace path from WorkspaceIdentity")
+	void shouldGenerateHyphenSeparatedWorkspacePath() {
+		WorkspaceIdentity identity = new WorkspaceIdentity("sys1", "agent2", "user3");
+		assertThat(identity.getWorkspacePath("mcp/workspaces/")).isEqualTo("mcp/workspaces/sys1-agent2-user3/");
+	}
 }
