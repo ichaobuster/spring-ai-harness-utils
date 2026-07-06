@@ -551,4 +551,86 @@ class FileSystemToolsTest {
 			assertThat(result).isEqualTo("Failed to grep for pattern \"err\": Grep execution failed");
 		}
 	}
+
+	@Nested
+	@DisplayName("ListDirectory Tool Tests")
+	class ListDirectoryToolTests {
+
+		@BeforeEach
+		void setupSpy() {
+			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+		}
+
+		@Test
+		@DisplayName("Should return error when path does not exist")
+		void shouldReturnErrorWhenPathDoesNotExist() {
+			when(storageProvider.exists("nonexistent")).thenReturn(false);
+
+			String result = spyFileSystemTools.listDirectory(context, "nonexistent");
+
+			assertThat(result).isEqualTo("Error: Path does not exist: nonexistent");
+		}
+
+		@Test
+		@DisplayName("Should return error when path is a file")
+		void shouldReturnErrorWhenPathIsFile() {
+			when(storageProvider.exists("file.txt")).thenReturn(true);
+			when(storageProvider.isDirectory("file.txt")).thenReturn(false);
+
+			String result = spyFileSystemTools.listDirectory(context, "file.txt");
+
+			assertThat(result).isEqualTo("Error: Path is a file, not a directory: file.txt");
+		}
+
+		@Test
+		@DisplayName("Should return formatted directory listing")
+		void shouldReturnFormattedListing() throws IOException {
+			when(storageProvider.exists("")).thenReturn(true);
+			when(storageProvider.isDirectory("")).thenReturn(true);
+			when(storageProvider.listDirectory("")).thenReturn(List.of(
+					new StorageProvider.Info("src", true, true, 0, 0),
+					new StorageProvider.Info("README.md", true, false, 100, 1700000000000L)
+			));
+
+			String result = spyFileSystemTools.listDirectory(context, null);
+
+			assertThat(result)
+					.contains("Directory listing for: .")
+					.contains("<DIR>")
+					.contains("src")
+					.contains("<FILE>")
+					.contains("README.md");
+		}
+	}
+
+	@Nested
+	@DisplayName("Trash Tool Tests")
+	class TrashToolTests {
+
+		@BeforeEach
+		void setupSpy() {
+			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+		}
+
+		@Test
+		@DisplayName("Should return error when file does not exist")
+		void shouldReturnErrorWhenFileDoesNotExist() {
+			when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+			String result = spyFileSystemTools.trash(context, "missing.txt");
+
+			assertThat(result).isEqualTo("Error: File or directory does not exist: missing.txt");
+		}
+
+		@Test
+		@DisplayName("Should move file to trash and return success message")
+		void shouldMoveFileToTrash() throws IOException {
+			when(storageProvider.exists("foo.txt")).thenReturn(true);
+
+			String result = spyFileSystemTools.trash(context, "foo.txt");
+
+			verify(storageProvider).trash("foo.txt");
+			assertThat(result).isEqualTo("Successfully moved to trash: foo.txt");
+		}
+	}
 }

@@ -142,7 +142,7 @@ spring-ai-harness-mcp-server/
 
 文件：`tool/FileSystemTools.java`
 
-MCP 工具入口类，提供 5 个 `@McpTool` 方法，是 agent 可调用的全部文件系统能力：
+MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全部文件系统能力：
 
 | 工具名 | 方法 | 功能 |
 |--------|------|------|
@@ -151,6 +151,8 @@ MCP 工具入口类，提供 5 个 `@McpTool` 方法，是 agent 可调用的全
 | `Edit` | `edit(ctx, filePath, oldString, newString, replaceAll)` | 精确字符串替换，支持单次/全部替换 |
 | `Glob` | `glob(ctx, pattern, path)` | Glob 模式文件搜索，返回最多 100 个结果 |
 | `Grep` | `grep(ctx, pattern, path, glob, outputMode, ...)` | 正则搜索，支持上下文行、行号、分页等 |
+| `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
+| `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
 
 **关键安全逻辑**：`getStorageProvider(McpTransportContext)` 方法从每个请求的 `Authorization` 头中解析出 `{system}-{agent}-{user}` 三元组，动态构建隔离的 `AliyunOssStorage` 实例。
 
@@ -228,7 +230,7 @@ spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
 - **所有文件路径操作**必须经过 `getFullKey()` 方法，确保路径被限制在 workspace prefix 下
 - **绝对路径**（以 `/` 开头）必须被拒绝并抛出 `SecurityException`
 - **Authorization 头**是唯一的身份识别来源，格式为 `{system}-{agent}-{user}`，必须严格校验
-- **路径遍历攻击**（如 `../`）必须被防御 —— 这是当前需要加强的安全点
+- **路径解析与 OSS 机制**：在 OSS 原生 SDK 中，Object Key 为字面量字符串，不会像 POSIX 文件系统一样将 `..` 解析为父级目录。`getFullKey()` 给每个 key 强制拼接 `prefix` 后，包含 `..` 的 key 依然位于 `prefix` 下，因此通过 OSS SDK 不会导致跨 workspace 越权逃逸。但在进行路径规范化处理（例如挂载到 POSIX 沙箱）时仍建议去除 `..` 变体
 - **不得暴露** OSS bucket、prefix 等内部存储细节给 agent
 - **工具方法的错误信息**中不得包含完整的 OSS key 路径，只返回相对路径
 
@@ -236,10 +238,9 @@ spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
 
 > ⚠️ 以下是已知需要强化的安全点，开发时应优先考虑：
 
-1. `getFullKey()` 中缺少对 `..` 路径遍历的防护
-2. Authorization 头的解析逻辑需要加强（当前仅做简单 `-` 分割）
-3. 需要添加路径规范化（normalize）处理，防止 `./foo/../bar` 等变体绕过
-4. 需要考虑 symlink 等攻击向量（在 OSS 层面风险较低，但 mount 到沙箱后需要关注）
+1. Authorization 头的解析逻辑需要加强（当前仅做简单 `-` 分割，待重构为独立认证模块）
+2. 路径规范化（normalize）处理，清洗 `./foo/../bar` 等不规范路径
+3. 需要考虑沙箱挂载后的 POSIX 符号链接/路径逃逸风险
 
 ---
 

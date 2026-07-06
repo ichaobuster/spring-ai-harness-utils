@@ -69,9 +69,8 @@ public class AliyunOssStorage implements StorageProvider {
 		// In OSS, a path is a directory if there are objects with this prefix ending in '/'
 		// or if we treat the prefix itself as a directory.
 		String key = toPathPrefix(path);
-		return this.ossClient.listObjects(new ListObjectsRequest(this.bucketName).withPrefix(key).withMaxKeys(1))
-				.getObjectSummaries()
-				.size() > 0;
+		return !this.ossClient.listObjects(new ListObjectsRequest(this.bucketName).withPrefix(key).withMaxKeys(1))
+				.getObjectSummaries().isEmpty();
 	}
 
 	@Override
@@ -128,6 +127,20 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	@Override
+	public void trash(String path) throws IOException {
+		if (!exists(path)) {
+			throw new IOException("File or directory does not exist: " + path);
+		}
+		long timestamp = System.currentTimeMillis();
+		String cleanPath = (path != null && path.startsWith("./")) ? path.substring(2) : path;
+		if (cleanPath != null && cleanPath.startsWith("/")) {
+			cleanPath = cleanPath.substring(1);
+		}
+		String trashPath = ".trash/" + timestamp + "/" + cleanPath;
+		rename(path, trashPath);
+	}
+
+	@Override
 	public void delete(String path) throws IOException {
 		String key = getFullKey(path);
 		if (isDirectory(path)) {
@@ -177,10 +190,12 @@ public class AliyunOssStorage implements StorageProvider {
 
 	@Override
 	public List<String> glob(String pattern, String path) throws IOException {
+		Assert.hasText(pattern, "pattern should not be empty");
+
 		// Build pathPrefix
 		String pathPrefix = toPathPrefix(path);
 		// Build PathMatcher pattern from glob pattern
-		final String matcherPattern = globToMatcherPattern(pattern, pathPrefix);
+		final String matcherPattern = globToMatcherPattern(pattern);
 		// Find all files in the path
 		List<OSSObjectSummary> allObjects = getOssObjectSummaries(pathPrefix);
 
@@ -188,7 +203,7 @@ public class AliyunOssStorage implements StorageProvider {
 				.filter(obj -> !obj.getKey().endsWith("/"))
 				.filter(obj -> pathMatcher.match(matcherPattern, obj.getKey()))
 				.sorted((o1, o2) -> o2.getLastModified().compareTo(o1.getLastModified()))
-				.collect(Collectors.toList());
+				.toList();
 
 		return matchedSummaries.stream()
 				.limit(MAX_RESULT)
@@ -215,7 +230,7 @@ public class AliyunOssStorage implements StorageProvider {
 		return allObjects;
 	}
 
-	private String globToMatcherPattern(String pattern, String pathPrefix) {
+	private String globToMatcherPattern(String pattern) {
 		if (!StringUtils.hasText(pattern)) {
 			return null;
 		}
@@ -236,7 +251,7 @@ public class AliyunOssStorage implements StorageProvider {
 		// Build pathPrefix
 		String pathPrefix = toPathPrefix(path);
 		// Build glob PathMatcher pattern from glob pattern
-		String globPattern = globToMatcherPattern(glob, pathPrefix);
+		String globPattern = globToMatcherPattern(glob);
 
 		// Compile regex pattern
 		Pattern searchPattern = compileRegexPattern(pattern, caseInsensitive, multiline);

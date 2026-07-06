@@ -325,6 +325,90 @@ public class FileSystemTools {
 		return formattedResult;
 	}
 
+	// @formatter:off
+	@McpTool(name = "ListDirectory", description = """
+		Lists the contents of a directory in the workspace.
+
+		Usage:
+		- The path parameter must be a path relative to the workspace directory.
+		- If path is omitted or empty, lists the workspace root directory.
+		- Returns entries with details including name, type (file or directory), size, and last modified timestamp.
+		""")
+	public String listDirectory(
+			McpTransportContext context,
+			@McpToolParam(description = "The relative path to the directory to list. Omit to list the workspace root directory.", required = false) String path) { // @formatter:on
+
+		StorageProvider storageProvider = getStorageProvider(context);
+		try {
+			String targetPath = (path == null || path.trim().isEmpty()) ? "" : path;
+
+			if (!storageProvider.exists(targetPath)) {
+				return "Error: Path does not exist: " + (targetPath.isEmpty() ? "." : targetPath);
+			}
+
+			if (!storageProvider.isDirectory(targetPath)) {
+				return "Error: Path is a file, not a directory: " + targetPath;
+			}
+
+			List<StorageProvider.Info> items = storageProvider.listDirectory(targetPath);
+			items = items.stream()
+					.filter(item -> !storageProvider.isIgnoredPath("/" + item.path() + "/"))
+					.collect(Collectors.toList());
+
+			if (items.isEmpty()) {
+				return "Directory is empty: " + (targetPath.isEmpty() ? "." : targetPath);
+			}
+
+			StringBuilder result = new StringBuilder();
+			result.append(String.format("Directory listing for: %s\n\n", targetPath.isEmpty() ? "." : targetPath));
+			result.append(String.format("%-10s %-12s %-24s %s\n", "TYPE", "SIZE", "MODIFIED", "NAME"));
+			result.append("-".repeat(60)).append("\n");
+
+			for (StorageProvider.Info item : items) {
+				String type = item.isDirectory() ? "<DIR>" : "<FILE>";
+				String sizeStr = item.isDirectory() ? "-" : String.valueOf(item.size()) + " B";
+				String modifiedStr = item.lastModified() > 0 ? new java.util.Date(item.lastModified()).toString() : "-";
+				result.append(String.format("%-10s %-12s %-24s %s\n", type, sizeStr, modifiedStr, item.path()));
+			}
+
+			return result.toString();
+
+		} catch (IOException e) {
+			return "Error listing directory: " + e.getMessage();
+		} catch (Exception e) {
+			return "Error: " + e.getMessage();
+		}
+	}
+
+	// @formatter:off
+	@McpTool(name = "Trash", description = """
+		Moves a file or directory to the workspace trash (.trash/).
+		Prefer using Trash over permanent deletion to allow safety and potential recovery.
+
+		Usage:
+		- The filePath parameter must be a path relative to the workspace directory.
+		- If the file or directory exists, it will be safely moved to .trash/ inside the workspace.
+		""")
+	public String trash(
+			McpTransportContext context,
+			@McpToolParam(description = "The relative path to the file or directory to move to trash") String filePath) { // @formatter:on
+
+		StorageProvider storageProvider = getStorageProvider(context);
+		try {
+			if (!storageProvider.exists(filePath)) {
+				return "Error: File or directory does not exist: " + filePath;
+			}
+
+			storageProvider.trash(filePath);
+			return String.format("Successfully moved to trash: %s", filePath);
+
+		} catch (IOException e) {
+			return "Error moving file or directory to trash: " + e.getMessage();
+		} catch (Exception e) {
+			return "Error: " + e.getMessage();
+		}
+	}
+
 	// Helper method to count occurrences of a substring
 	private int countOccurrences(String text, String substring) {
 		int count = 0;

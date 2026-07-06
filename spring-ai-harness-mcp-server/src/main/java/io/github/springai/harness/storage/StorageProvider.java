@@ -32,7 +32,7 @@ public interface StorageProvider {
 	 */
 	Integer DEFAULT_HEAD_LIMIT = 250;
 
-	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/");
+	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/");
 
 	default char getSeparator() {
 		return File.separatorChar;
@@ -101,6 +101,14 @@ public interface StorageProvider {
 	 * @throws IOException if an error occurs.
 	 */
 	void writeString(String path, String content) throws IOException;
+
+	/**
+	 * Moves a file or directory to the workspace trash (.trash/).
+	 *
+	 * @param path the path relative to the storage.
+	 * @throws IOException if an error occurs.
+	 */
+	void trash(String path) throws IOException;
 
 	/**
 	 * Deletes a file or directory (recursively) from the memory store.

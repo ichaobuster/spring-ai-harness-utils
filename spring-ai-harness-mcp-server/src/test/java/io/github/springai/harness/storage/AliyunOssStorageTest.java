@@ -117,6 +117,29 @@ class AliyunOssStorageTest {
 	}
 
 	@Test
+	@DisplayName("trash() throws IOException when file does not exist")
+	void trashNonExistingFile() {
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+		when(ossClient.doesObjectExist(bucketName, prefix + "nonexistent.txt")).thenReturn(false);
+
+		assertThatThrownBy(() -> storage.trash("nonexistent.txt"))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("File or directory does not exist: nonexistent.txt");
+	}
+
+	@Test
+	@DisplayName("trash() moves existing file to .trash/")
+	void trashExistingFile() throws IOException {
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+		when(ossClient.doesObjectExist(bucketName, prefix + "sample.txt")).thenReturn(true);
+
+		storage.trash("sample.txt");
+
+		verify(ossClient).copyObject(eq(bucketName), eq(prefix + "sample.txt"), eq(bucketName), argThat(key -> key.startsWith(prefix + ".trash/") && key.endsWith("/sample.txt")));
+		verify(ossClient).deleteObject(bucketName, prefix + "sample.txt");
+	}
+
+	@Test
 	@DisplayName("prefix variants in constructor")
 	void constructorPrefix() {
 		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
