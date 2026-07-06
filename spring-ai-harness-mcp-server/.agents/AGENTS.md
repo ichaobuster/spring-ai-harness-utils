@@ -43,15 +43,21 @@
 │  ┌─────────────────────────────────────────────────────────┐     │
 │  │  HarnessMcpServerAutoConfiguration                      │     │
 │  │  • WebMvcStatelessServerTransport (Stateless MCP)       │     │
-│  │  • contextExtractor → ServerRequest → McpTransportCtx   │     │
+│  │  • Register AuthenticationProvider & StorageFactory     │     │
 │  └─────────────────────────────────────────────────────────┘     │
 │                          │                                       │
 │                          ▼                                       │
 │  ┌─────────────────────────────────────────────────────────┐     │
+│  │  Authentication & Storage Factory                       │     │
+│  │  • HeaderAuthenticationProvider → WorkspaceIdentity     │     │
+│  │  • DefaultStorageProviderFactory → AliyunOssStorage     │     │
+│  └──────────────────────┬──────────────────────────────────┘     │
+│                         │                                        │
+│                         ▼                                        │
+│  ┌─────────────────────────────────────────────────────────┐     │
 │  │  FileSystemTools (@McpTool)                             │     │
-│  │  • Read / Write / Edit / Glob / Grep                    │     │
-│  │  • 从 Authorization 头解析 system-agent-user            │     │
-│  │  • 每次请求动态创建 StorageProvider（含 workspace 隔离） │     │
+│  │  • Read / Write / Edit / Glob / Grep / ListDirectory / Trash  │
+│  │  • 委托 StorageProviderFactory 动态获取隔离 Storage      │     │
 │  └──────────────────────┬──────────────────────────────────┘     │
 │                         │                                        │
 │                         ▼                                        │
@@ -59,8 +65,8 @@
 │  │  StorageProvider (接口)                                  │     │
 │  │  └─ AliyunOssStorage (实现)                              │     │
 │  │     • bucket: ${spring.ai.harness.mcp.server.oss-bucket}│     │
-│  │     • prefix: mcp/workspaces/{system}/{agent}/{user}/   │     │
-│  │     • 所有路径操作均限制在 prefix 下                      │     │
+│  │     • prefix: mcp/workspaces/{system}-{agent}-{user}/   │     │
+│  │     • 所有路径操作及回收站操作均限制在 prefix 下           │     │
 │  └──────────────────────┬──────────────────────────────────┘     │
 │                         │                                        │
 └─────────────────────────┼────────────────────────────────────────┘
@@ -75,10 +81,10 @@
 ### Workspace 隔离模型
 
 ```
-oss://{bucket}/{ossPrefix}/{system}/{agent}/{user}/
+oss://{bucket}/{ossPrefix}/{system}-{agent}-{user}/
        │         │           │        │       │
-       │         │           │        │       └── 用户维度隔离
-       │         │           │        └────────── Agent 维度隔离
+       │         │           │        │       └── 用户维度隔离 (分隔符 -)
+       │         │           │        └────────── Agent 维度隔离 (分隔符 -)
        │         │           └─────────────────── 系统维度隔离
        │         └─────────────────────────────── 可配置前缀 (默认 mcp/workspaces/)
        └───────────────────────────────────────── OSS Bucket
@@ -169,15 +175,16 @@ MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全
 
 包路径：`auth/`
 
-- **`WorkspaceIdentity`**：身份信息 Record (`system`, `agent`, `user`)，提供 `getWorkspacePath(prefix)` 方法生成格式化的 OSS 前缀路径。
+- **`WorkspaceIdentity`**：身份信息 Record (`system`, `agent`, `user`)，提供 `getWorkspacePath(prefix)` 方法生成格式化的 OSS 前缀路径（如 `mcp/workspaces/sys1-agent2-user3/`）。
+- **`AuthenticationException`**：认证与 Authorization 解析异常类。
 - **`AuthenticationProvider`**：认证抽象接口，定义 `authenticate(ServerRequest)` 契约。
-- **`HeaderAuthenticationProvider`**：从 `Authorization` Header 解析身份，支持 `system-agent-user` 及 `system/agent/user` 格式（兼容 `Bearer` 前缀）。
+- **`HeaderAuthenticationProvider`**：从 `Authorization` Header 解析身份，支持 `system-agent-user` 及 `system/agent/user` 格式（自动兼容 `Bearer` 前缀与首尾空白清洗）。
 
 ### 3. StorageProvider & StorageProviderFactory
 
 包路径：`storage/`
 
-存储抽象接口，定义了所有文件操作契约。关键常量：
+存储抽象接口，定义了所有文件与回收站操作契约。关键常量：
 
 | 常量 | 值 | 说明 |
 |------|----|------|
@@ -186,16 +193,18 @@ MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全
 | `MAX_LINES` | 2000 | Read 默认最大读取行数 |
 | `MAX_LINE_LENGTH` | 2000 | 单行最大长度（超出截断）|
 | `DEFAULT_HEAD_LIMIT` | 250 | Grep 默认 head 限制 |
-| `IGNORED_PATH_PATTERN` | `.git`, `node_modules` 等 | 自动忽略的路径模式 |
+| `IGNORED_PATH_PATTERN` | `.git`, `node_modules`, `.trash`, `.snapshots` 等 | 自动忽略的路径模式 |
 
-### 3. AliyunOssStorage
-
-文件：`storage/AliyunOssStorage.java`
-
-`StorageProvider` 的阿里云 OSS 实现。**安全核心**在 `getFullKey(path)` 方法：
+工厂与实现：
+- **`StorageProviderFactory`**：定义 `getStorageProvider(McpTransportContext)` 契约。
+- **`DefaultStorageProviderFactory`**：结合 `AuthenticationProvider` 提取身份并构建对应工作区前缀的 `AliyunOssStorage`。
+- **`AliyunOssStorage`**：`StorageProvider` 的阿里云 OSS 实现。提供 `trash(path)` 移动文件/目录到 `.trash/{timestamp}/{path}` 的软删除能力。**安全核心**在 `getFullKey(path)` 方法：
 
 ```java
 private String getFullKey(String path) {
+    if (!StringUtils.hasText(path)) {
+        return this.prefix;
+    }
     if (path.startsWith("/")) {
         throw new SecurityException("Absolute paths are not allowed: '" + path + "'");
     }
@@ -209,7 +218,10 @@ private String getFullKey(String path) {
 ### 4. AutoConfiguration
 
 - **`AliyunOssAutoConfiguration`**：根据 `aliyun.oss.*` 配置创建 `OSS` 客户端 Bean
-- **`HarnessMcpServerAutoConfiguration`**：配置 Stateless MCP Server 传输层，通过 `contextExtractor` 将 `ServerRequest` 注入 `McpTransportContext`
+- **`HarnessMcpServerAutoConfiguration`**：
+  - 配置 Stateless MCP Server 传输层，通过 `contextExtractor` 将 `ServerRequest` 注入 `McpTransportContext`
+  - 自动装配 `@ConditionalOnMissingBean` 的 `AuthenticationProvider`（默认 `HeaderAuthenticationProvider`）
+  - 自动装配 `@ConditionalOnMissingBean` 的 `StorageProviderFactory`（默认 `DefaultStorageProviderFactory`）
 
 ---
 
@@ -284,11 +296,12 @@ spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
 
 ### 分层职责
 
-| 层 | 职责 | 安全边界 |
-|----|------|----------|
-| `tool/` | MCP 工具定义、参数校验、身份识别 | Authorization 解析、workspace 路由 |
-| `storage/` | 存储抽象与实现、文件操作 | 路径隔离、绝对路径拦截 |
-| `autoconfig/` | Spring Boot 自动配置、Bean 装配 | 配置注入 |
+| 层 | 职责 | 安全与防边界 |
+|----|------|--------------|
+| `auth/` | 请求身份提取与校验，生成标准 `WorkspaceIdentity` | Header 解析、Token 清洗、格式错误拦截 |
+| `tool/` | MCP 工具定义与参数校验，使用 `StorageProviderFactory` 获取隔离存储 | 参数格式防错、不合法路径拦截 |
+| `storage/` | 存储抽象、工厂模式与 OSS 实现，提供文件读写、ListDirectory 及 Trash 回收站能力 | 路径隔离、绝对路径拦截 |
+| `autoconfig/` | Spring Boot 自动配置，装配 Server、Auth 与 StorageFactory Bean | 配置注入、可插拔组件替换 |
 
 ### 新增 MCP 工具的流程
 
