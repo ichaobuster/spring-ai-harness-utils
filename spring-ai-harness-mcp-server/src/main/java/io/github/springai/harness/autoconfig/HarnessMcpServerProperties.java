@@ -30,4 +30,9 @@ public class HarnessMcpServerProperties {
 	 */
 	private String pwd = "workspace/";
 
+	/**
+	 * 管理员 API 认证 Token
+	 */
+	private String adminToken = "admin-secret";
+
 }

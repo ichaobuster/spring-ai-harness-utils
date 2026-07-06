@@ -130,6 +130,12 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── AliyunOssProperties.java          # OSS 连接配置属性
     │   │   │   ├── HarnessMcpServerAutoConfiguration.java  # MCP Server 自动配置
     │   │   │   └── HarnessMcpServerProperties.java   # MCP Server 配置属性
+    │   │   ├── controller/
+    │   │   │   ├── WorkspaceApiController.java        # 用户工作区文件与快照管理 REST Controller (/api/v1/workspace)
+    │   │   │   └── AdminApiController.java            # 管理员工作区与文件运维 REST Controller (/api/v1/admin)
+    │   │   ├── dto/
+    │   │   │   ├── FileItemDto.java                   # 文件列表项 DTO
+    │   │   │   └── WorkspaceInfoDto.java              # 工作区元数据 DTO
     │   │   ├── skill/
     │   │   │   ├── MarkdownParser.java                # Markdown 与 YAML FrontMatter 解析器
     │   │   │   ├── SkillInfo.java                     # Skill 描述元数据 Record (basePath, frontMatter, content)
@@ -153,6 +159,9 @@ spring-ai-harness-mcp-server/
         └── java/io/github/springai/harness/
             ├── auth/
             │   └── HeaderAuthenticationProviderTest.java
+            ├── controller/
+            │   ├── WorkspaceApiControllerTest.java
+            │   └── AdminApiControllerTest.java
             ├── skill/
             │   └── DefaultSkillProviderTest.java
             ├── snapshot/
@@ -208,7 +217,32 @@ MCP Skill 管理入口类，将 Skill 能力独立抽取，同时暴露 **MCP To
 | `skill://list` | `listSkillsResource(ctx)` | `text/plain` | 通过 MCP Resource 协议直接拉取全量 Skills 元数据列表 |
 | `skill://{skillName}` | `readSkillResource(ctx, skillName)` | `text/markdown` | 通过 `skill://{skillName}` URI 协议标准读取指定 Skill 内容 |
 
-### 3. Snapshot Module (文件快照与撤回模块)
+### 4. Management REST API Module (管理功能 REST API)
+
+包路径：`controller/`, `dto/`
+
+#### 用户工作区端点 (`WorkspaceApiController` - `/api/v1/workspace`)
+
+需要通过请求头 `Authorization: {system}-{agent}-{user}` 传递身份。
+
+| HTTP 方法 | 请求路径 | 功能 | 说明 |
+|-----------|---------|------|------|
+| `GET` | `/api/v1/workspace/files?path=` | 列出工作区目录文件 | 返回 `List<FileItemDto>` |
+| `GET` | `/api/v1/workspace/files/content?path=` | 读取/下载文件内容 | 返回文本内容 |
+| `POST` | `/api/v1/workspace/files/upload?path=` | 上传/写入文件 | Body 传文本，触发自动前置快照 |
+| `DELETE` | `/api/v1/workspace/files?path=&trash=true` | 删除或移入回收站 | 默认移入回收站，触发自动前置快照 |
+| `GET` | `/api/v1/workspace/snapshots?path=` | 查询文件历史快照列表 | 返回 `List<SnapshotInfo>` |
+| `POST` | `/api/v1/workspace/rewind/{snapshotId}` | 一键回滚文件到特定快照 | 自动触发安全兜底快照 |
+
+#### 管理员端点 (`AdminApiController` - `/api/v1/admin`)
+
+需要通过请求头 `X-Admin-Token: {adminToken}` 验证管理员身份（配置项 `spring.ai.harness.mcp.server.admin-token`）。
+
+| HTTP 方法 | 请求路径 | 功能 | 说明 |
+|-----------|---------|------|------|
+| `GET` | `/api/v1/admin/workspaces` | 列出 OSS 所有工作区空间列表 | 返回 `List<WorkspaceInfoDto>` |
+| `GET` | `/api/v1/admin/workspaces/{workspaceKey}/files?path=` | 管理员列出特定工作区文件 | 返回 `List<FileItemDto>` |
+| `DELETE` | `/api/v1/admin/workspaces/{workspaceKey}/files?path=` | 管理员强制删除特定工作区文件 | 清理指定文件 |
 
 包路径：`snapshot/`
 
