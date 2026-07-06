@@ -58,7 +58,7 @@ public class AliyunOssStorage implements StorageProvider {
 
 	@Override
 	public boolean exists(String path) {
-		return this.ossClient.doesObjectExist(this.bucketName, getFullKey(path));
+		return isDirectory(path) || this.ossClient.doesObjectExist(this.bucketName, getFullKey(path));
 	}
 
 	@Override
@@ -461,7 +461,7 @@ public class AliyunOssStorage implements StorageProvider {
 		if (path.startsWith("/")) {
 			throw new SecurityException("Absolute paths are not allowed: '" + path + "'");
 		}
-		
+
 		if (path.startsWith("./")) {
 			return this.prefix + path.substring(2);
 		}

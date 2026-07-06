@@ -63,6 +63,7 @@ class AliyunOssStorageTest {
 	@Test
 	@DisplayName("exists() delegates to ossClient")
 	void exists() {
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
 		when(ossClient.doesObjectExist(bucketName, prefix + "test.md")).thenReturn(true);
 		assertThat(storage.exists("test.md")).isTrue();
 	}
@@ -164,6 +165,8 @@ class AliyunOssStorageTest {
 	@Test
 	@DisplayName("prefix variants in constructor")
 	void constructorPrefix() {
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
 		var s1 = new AliyunOssStorage(ossClient, bucketName, null);
 		assertThat(s1.exists("f")).isFalse();
 		verify(ossClient).doesObjectExist(bucketName, "f");
@@ -192,6 +195,8 @@ class AliyunOssStorageTest {
 	@Test
 	@DisplayName("path starting with ./ strips dot-slash prefix")
 	void pathStartsWithDotSlashStripsPrefix() throws IOException {
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
 		when(ossClient.doesObjectExist(bucketName, prefix + "test.md")).thenReturn(true);
 		assertThat(storage.exists("./test.md")).isTrue();
 
