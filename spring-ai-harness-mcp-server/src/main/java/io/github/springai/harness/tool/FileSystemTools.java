@@ -412,11 +412,11 @@ public class FileSystemTools {
 
 			StringBuilder result = new StringBuilder();
 			result.append("Available Skills:\n\n");
-			result.append(String.format("%-24s %-10s %s\n", "NAME", "SOURCE", "DESCRIPTION"));
-			result.append("-".repeat(70)).append("\n");
+			result.append(String.format("%-24s %-30s %s\n", "NAME", "BASE DIRECTORY", "DESCRIPTION"));
+			result.append("-".repeat(80)).append("\n");
 
 			for (SkillInfo skill : skills) {
-				result.append(String.format("%-24s %-10s %s\n", skill.name(), skill.source(), skill.description()));
+				result.append(String.format("%-24s %-30s %s\n", skill.name(), skill.basePath(), skill.description()));
 			}
 
 			return result.toString();

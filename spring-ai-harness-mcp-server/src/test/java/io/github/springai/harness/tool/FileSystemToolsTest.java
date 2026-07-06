@@ -660,7 +660,7 @@ class FileSystemToolsTest {
 		@DisplayName("Should return formatted skills list")
 		void shouldReturnFormattedSkillsList() throws IOException {
 			when(skillProvider.listSkills(any())).thenReturn(List.of(
-					new io.github.springai.harness.skill.SkillInfo("code-review", "Reviews code", "skills/code-review/SKILL.md", "user")
+					new io.github.springai.harness.skill.SkillInfo("skills/code-review", Map.of("name", "code-review", "description", "Reviews code"), "# Content")
 			));
 
 			String result = fileSystemTools.listSkills(context);
@@ -668,7 +668,6 @@ class FileSystemToolsTest {
 			assertThat(result)
 					.contains("Available Skills:")
 					.contains("code-review")
-					.contains("user")
 					.contains("Reviews code");
 		}
 	}

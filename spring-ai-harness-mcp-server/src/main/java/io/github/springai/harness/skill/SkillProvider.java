@@ -6,14 +6,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * SkillProvider interface for discovering and reading skills.
+ * SkillProvider interface for discovering and reading skills in workspace.
  *
  * @author buyc
  */
 public interface SkillProvider {
 
 	/**
-	 * Lists all available skills for the current request context (user skills + global shared skills).
+	 * Lists all available skills in the workspace under skills/ directory.
 	 *
 	 * @param context MCP transport context
 	 * @return list of available SkillInfo
@@ -26,7 +26,7 @@ public interface SkillProvider {
 	 *
 	 * @param context MCP transport context
 	 * @param skillName skill name
-	 * @return full SKILL.md markdown content
+	 * @return full SKILL.md markdown content formatted with base directory
 	 * @throws IOException if storage error occurs
 	 */
 	String readSkill(McpTransportContext context, String skillName) throws IOException;

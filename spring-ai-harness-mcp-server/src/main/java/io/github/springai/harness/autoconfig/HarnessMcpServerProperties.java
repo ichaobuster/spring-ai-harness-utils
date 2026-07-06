@@ -21,7 +21,7 @@ public class HarnessMcpServerProperties {
 	private String ossPrefix = "mcp/workspaces/";
 
 	/**
-	 * 使用 OSS 与 JUMP OSS 的 StroageProvider 时，需要指定 bucketName
+	 * 使用 OSS 与 JUMP OSS 的 StorageProvider 时，需要指定 bucketName
 	 */
 	private String ossBucket;
 
@@ -29,10 +29,5 @@ public class HarnessMcpServerProperties {
 	 * 工作空间路径
 	 */
 	private String pwd = "workspace/";
-
-	/**
-	 * 公共 Skills 存储前缀
-	 */
-	private String globalSkillsPrefix = "mcp/global/skills/";
 
 }

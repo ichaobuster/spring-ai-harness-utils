@@ -131,9 +131,10 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── HarnessMcpServerAutoConfiguration.java  # MCP Server 自动配置
     │   │   │   └── HarnessMcpServerProperties.java   # MCP Server 配置属性
     │   │   ├── skill/
-    │   │   │   ├── SkillInfo.java                     # Skill 描述元数据 Record
+    │   │   │   ├── MarkdownParser.java                # Markdown 与 YAML FrontMatter 解析器
+    │   │   │   ├── SkillInfo.java                     # Skill 描述元数据 Record (basePath, frontMatter, content)
     │   │   │   ├── SkillProvider.java                 # Skill 发现与读取接口
-    │   │   │   └── DefaultSkillProvider.java          # 双前缀（用户+公共）Skill 实现类
+    │   │   │   └── DefaultSkillProvider.java          # Workspace Skill 扫描与读取实现类
     │   │   ├── storage/
     │   │   │   ├── StorageProvider.java               # 存储抽象接口
     │   │   │   ├── StorageProviderFactory.java        # 存储工厂抽象接口
@@ -174,8 +175,8 @@ MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全
 | `Grep` | `grep(ctx, pattern, path, glob, outputMode, ...)` | 正则搜索，支持上下文行、行号、分页等 |
 | `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
 | `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
-| `ListSkills` | `listSkills(ctx)` | 列出工作区可用的全部 Skills（用户私有 + 公共只读），含名称、来源与描述 |
-| `ReadSkill` | `readSkill(ctx, skillName)` | 读取指定 Skill 的完整 `SKILL.md` 指令内容 |
+| `ListSkills` | `listSkills(ctx)` | 列出工作区 `skills/` 目录下可用的全部 Skills，含名称、基目录与描述 |
+| `ReadSkill` | `readSkill(ctx, skillName)` | 读取指定 Skill 的完整 `SKILL.md` 指令内容（附带基目录 Header） |
 
 **关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
 
@@ -183,13 +184,13 @@ MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全
 
 包路径：`skill/`
 
-- **`SkillInfo`**：Skill 描述元数据 Record（`name`, `description`, `path`, `source`）。
+- **`MarkdownParser`**：Markdown 与 YAML Frontmatter 解析器，提取 `---` 包裹的元数据到 `Map<String, Object>`，并分离 Markdown Body 内容。
+- **`SkillInfo`**：Skill 数据结构 Record（`basePath`, `frontMatter`, `content`），提供 `name()` 与 `description()` 动态提取方法。
 - **`SkillProvider`**：Skills 发现与读取抽象接口，定义 `listSkills(McpTransportContext)` 与 `readSkill(McpTransportContext, String)` 契约。
-- **`DefaultSkillProvider`**：双前缀查询实现。
-  - **用户私有 Skills**：从当前 workspace 的 `/skills/` 目录扫描读取（标准结构：`skills/{name}/SKILL.md`）。
-  - **公共只读 Skills**：从全局 OSS 路径（默认 `mcp/global/skills/`）扫描读取，天然只读。
-  - **优先级合并**：同名 Skill 时，用户私有 Skill 优先覆盖公共 Skill。
-  - **Frontmatter 解析**：自动解析 `SKILL.md` 的 YAML Frontmatter 中定义的 `name:` 与 `description:`。
+- **`DefaultSkillProvider`**：
+  - 使用 `storageProvider.glob("**/SKILL.md", "skills")` 自动扫描当前工作区 `skills/` 目录下的所有 `SKILL.md`。
+  - `readSkill` 返回格式如 `Base directory for this skill: skills/{skillName}\n\n{content}`，指导 Agent 在自身工作区内访问该 Skill 的 `scripts/` 或 `references/` 资源。
+- **关于公共/全局 Skills 的架构考虑**：全局 Skills 存储于 Agent 工作区 prefix 之外。当 Skill 内部包含关联文档 (`references/`) 或脚本 (`scripts/`) 时，由于沙箱和 MCP 读写限制在工作区根路径，跨区读取及 OSS 软链接机制受限。因此**暂不引入跨 workspace 的全局 Skills 共享**，确保工作区安全隔离边界。
 
 ### 3. Authentication Module (认证模块)
 

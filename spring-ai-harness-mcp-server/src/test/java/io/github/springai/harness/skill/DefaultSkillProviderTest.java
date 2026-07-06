@@ -1,9 +1,5 @@
 package io.github.springai.harness.skill;
 
-import com.aliyun.oss.OSS;
-import com.aliyun.oss.model.ListObjectsRequest;
-import com.aliyun.oss.model.ObjectListing;
-import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -19,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
@@ -35,20 +30,12 @@ class DefaultSkillProviderTest {
 	@Mock
 	private StorageProvider userStorageProvider;
 
-	@Mock
-	private OSS ossClient;
-
-	private HarnessMcpServerProperties properties;
 	private DefaultSkillProvider skillProvider;
 	private McpTransportContext context;
 
 	@BeforeEach
 	void setUp() {
-		properties = new HarnessMcpServerProperties();
-		properties.setOssBucket("test-bucket");
-		properties.setGlobalSkillsPrefix("mcp/global/skills/");
-
-		skillProvider = new DefaultSkillProvider(storageProviderFactory, properties, ossClient);
+		skillProvider = new DefaultSkillProvider(storageProviderFactory);
 		context = McpTransportContext.create(Map.of());
 	}
 
@@ -56,14 +43,9 @@ class DefaultSkillProviderTest {
 	@DisplayName("Should list user skills and parse frontmatter")
 	void shouldListUserSkills() throws IOException {
 		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
-		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
 		when(userStorageProvider.exists("skills")).thenReturn(true);
-		when(userStorageProvider.isDirectory("skills")).thenReturn(true);
-
-		when(userStorageProvider.listDirectory("skills")).thenReturn(List.of(
-				new StorageProvider.Info("my-skill", true, true, 0, 0)
-		));
-		when(userStorageProvider.exists("skills/my-skill/SKILL.md")).thenReturn(true);
+		when(userStorageProvider.getSeparator()).thenReturn('/');
+		when(userStorageProvider.glob("**/SKILL.md", "skills")).thenReturn(List.of("skills/my-skill/SKILL.md"));
 		when(userStorageProvider.readString("skills/my-skill/SKILL.md")).thenReturn("""
 				---
 				name: my-skill
@@ -71,6 +53,7 @@ class DefaultSkillProviderTest {
 				---
 
 				# Instructions
+				Follow these steps...
 				""");
 
 		List<SkillInfo> skills = skillProvider.listSkills(context);
@@ -79,28 +62,38 @@ class DefaultSkillProviderTest {
 		SkillInfo info = skills.get(0);
 		assertThat(info.name()).isEqualTo("my-skill");
 		assertThat(info.description()).isEqualTo("A cool skill");
-		assertThat(info.source()).isEqualTo("user");
+		assertThat(info.basePath()).isEqualTo("skills/my-skill");
+		assertThat(info.content()).contains("# Instructions");
 	}
 
 	@Test
-	@DisplayName("Should read user skill content")
+	@DisplayName("Should read user skill content with base directory header")
 	void shouldReadUserSkillContent() throws IOException {
 		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
-		when(userStorageProvider.exists("skills/my-skill/SKILL.md")).thenReturn(true);
-		when(userStorageProvider.readString("skills/my-skill/SKILL.md")).thenReturn("Skill Content");
+		when(userStorageProvider.exists("skills")).thenReturn(true);
+		when(userStorageProvider.getSeparator()).thenReturn('/');
+		when(userStorageProvider.glob("**/SKILL.md", "skills")).thenReturn(List.of("skills/my-skill/SKILL.md"));
+		when(userStorageProvider.readString("skills/my-skill/SKILL.md")).thenReturn("""
+				---
+				name: my-skill
+				description: "A cool skill"
+				---
+
+				# Skill Body
+				""");
 
 		String content = skillProvider.readSkill(context, "my-skill");
 
-		assertThat(content).isEqualTo("Skill Content");
+		assertThat(content)
+				.startsWith("Base directory for this skill: skills/my-skill")
+				.contains("# Skill Body");
 	}
 
 	@Test
 	@DisplayName("Should return error message when skill is not found")
 	void shouldReturnErrorWhenSkillNotFound() throws IOException {
 		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
-		when(userStorageProvider.exists("skills/unknown/SKILL.md")).thenReturn(false);
-		when(userStorageProvider.listDirectory("skills")).thenReturn(List.of());
-		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+		when(userStorageProvider.exists("skills")).thenReturn(false);
 
 		String result = skillProvider.readSkill(context, "unknown");
 

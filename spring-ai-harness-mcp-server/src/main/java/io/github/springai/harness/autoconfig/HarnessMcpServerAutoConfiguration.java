@@ -43,8 +43,8 @@ public class HarnessMcpServerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public SkillProvider skillProvider(StorageProviderFactory storageProviderFactory, HarnessMcpServerProperties properties, OSS ossClient) {
-		return new DefaultSkillProvider(storageProviderFactory, properties, ossClient);
+	public SkillProvider skillProvider(StorageProviderFactory storageProviderFactory) {
+		return new DefaultSkillProvider(storageProviderFactory);
 	}
 
 	@Bean
