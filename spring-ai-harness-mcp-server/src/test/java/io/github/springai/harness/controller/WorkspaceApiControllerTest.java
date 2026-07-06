@@ -14,11 +14,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -65,6 +65,17 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
+	@DisplayName("Should return 400 when list files throws exception")
+	void shouldReturn400WhenListFilesFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenThrow(new RuntimeException("Storage error"));
+
+		mockMvc.perform(get("/api/v1/workspace/files")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Storage error"));
+	}
+
+	@Test
 	@DisplayName("Should get file content successfully")
 	void shouldGetFileContent() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
@@ -77,6 +88,46 @@ class WorkspaceApiControllerTest {
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isOk())
 				.andExpect(content().string("Hello World"));
+	}
+
+	@Test
+	@DisplayName("Should return 404 when file does not exist")
+	void shouldReturn404WhenGetFileContentNotFound() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+		mockMvc.perform(get("/api/v1/workspace/files/content")
+						.param("path", "missing.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error").value("File not found: missing.txt"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when path is a directory")
+	void shouldReturn400WhenGetFileContentIsDirectory() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("some-dir")).thenReturn(true);
+		when(storageProvider.isDirectory("some-dir")).thenReturn(true);
+
+		mockMvc.perform(get("/api/v1/workspace/files/content")
+						.param("path", "some-dir")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Path is a directory: some-dir"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when get file content throws exception")
+	void shouldReturn400WhenGetFileContentFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("foo.txt")).thenThrow(new RuntimeException("Read error"));
+
+		mockMvc.perform(get("/api/v1/workspace/files/content")
+						.param("path", "foo.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Read error"));
 	}
 
 	@Test
@@ -96,13 +147,28 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should delete file via trash")
+	@DisplayName("Should return 400 when upload file throws exception")
+	void shouldReturn400WhenUploadFileFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		doThrow(new RuntimeException("Write error")).when(storageProvider).writeString("foo.txt", "New Content");
+
+		mockMvc.perform(post("/api/v1/workspace/files/upload")
+						.param("path", "foo.txt")
+						.content("New Content")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Write error"));
+	}
+
+	@Test
+	@DisplayName("Should delete file via trash when trash=true")
 	void shouldDeleteFileViaTrash() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(storageProvider.exists("foo.txt")).thenReturn(true);
 
 		mockMvc.perform(delete("/api/v1/workspace/files")
 						.param("path", "foo.txt")
+						.param("trash", "true")
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Moved to trash successfully"));
@@ -112,7 +178,51 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should list snapshots")
+	@DisplayName("Should delete file permanently when trash=false")
+	void shouldDeleteFilePermanentlyWhenTrashFalse() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("foo.txt")).thenReturn(true);
+
+		mockMvc.perform(delete("/api/v1/workspace/files")
+						.param("path", "foo.txt")
+						.param("trash", "false")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Deleted file successfully"));
+
+		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "TRASH");
+		verify(storageProvider).delete("foo.txt");
+	}
+
+	@Test
+	@DisplayName("Should return 404 when delete path does not exist")
+	void shouldReturn404WhenDeletePathNotFound() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+		mockMvc.perform(delete("/api/v1/workspace/files")
+						.param("path", "missing.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error").value("Path not found: missing.txt"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when delete throws exception")
+	void shouldReturn400WhenDeleteFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("foo.txt")).thenReturn(true);
+		doThrow(new RuntimeException("Trash error")).when(storageProvider).trash("foo.txt");
+
+		mockMvc.perform(delete("/api/v1/workspace/files")
+						.param("path", "foo.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Trash error"));
+	}
+
+	@Test
+	@DisplayName("Should list snapshots successfully")
 	void shouldListSnapshots() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(snapshotProvider.listSnapshots(storageProvider, "foo.txt")).thenReturn(List.of(
@@ -128,7 +238,19 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should rewind snapshot")
+	@DisplayName("Should return 400 when list snapshots throws exception")
+	void shouldReturn400WhenListSnapshotsFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(snapshotProvider.listSnapshots(any(), any())).thenThrow(new IOException("Snapshot read error"));
+
+		mockMvc.perform(get("/api/v1/workspace/snapshots")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Snapshot read error"));
+	}
+
+	@Test
+	@DisplayName("Should rewind snapshot successfully")
 	void shouldRewindSnapshot() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(snapshotProvider.rewind(storageProvider, "snap1")).thenReturn("Successfully rewound file.");
@@ -137,5 +259,29 @@ class WorkspaceApiControllerTest {
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Successfully rewound file."));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when rewind returns error message")
+	void shouldReturn400WhenRewindReturnsError() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(snapshotProvider.rewind(storageProvider, "invalid-snap")).thenReturn("Error: Snapshot not found: invalid-snap");
+
+		mockMvc.perform(post("/api/v1/workspace/rewind/invalid-snap")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Error: Snapshot not found: invalid-snap"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when rewind throws exception")
+	void shouldReturn400WhenRewindFails() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(snapshotProvider.rewind(any(), any())).thenThrow(new RuntimeException("Rewind error"));
+
+		mockMvc.perform(post("/api/v1/workspace/rewind/snap1")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Rewind error"));
 	}
 }

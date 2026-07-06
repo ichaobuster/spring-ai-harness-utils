@@ -79,6 +79,11 @@ public class AdminApiController {
 		}
 	}
 
+	protected StorageProvider createStorageProvider(String workspaceKey) {
+		String workspacePrefix = properties.getOssPrefix() + workspaceKey + "/";
+		return new AliyunOssStorage(ossClient, properties.getOssBucket(), workspacePrefix);
+	}
+
 	@GetMapping("/workspaces/{workspaceKey}/files")
 	public ResponseEntity<?> listWorkspaceFiles(
 			HttpServletRequest request,
@@ -87,8 +92,7 @@ public class AdminApiController {
 		try {
 			checkAdminAuth(request);
 
-			String workspacePrefix = properties.getOssPrefix() + workspaceKey + "/";
-			StorageProvider storage = new AliyunOssStorage(ossClient, properties.getOssBucket(), workspacePrefix);
+			StorageProvider storage = createStorageProvider(workspaceKey);
 
 			List<StorageProvider.Info> items = storage.listDirectory(path);
 			List<FileItemDto> dtoList = new ArrayList<>();
@@ -113,8 +117,7 @@ public class AdminApiController {
 		try {
 			checkAdminAuth(request);
 
-			String workspacePrefix = properties.getOssPrefix() + workspaceKey + "/";
-			StorageProvider storage = new AliyunOssStorage(ossClient, properties.getOssBucket(), workspacePrefix);
+			StorageProvider storage = createStorageProvider(workspaceKey);
 
 			if (!storage.exists(path)) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Path not found: " + path));
