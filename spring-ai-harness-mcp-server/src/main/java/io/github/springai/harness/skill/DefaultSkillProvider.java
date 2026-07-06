@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 /**
  * Default implementation of SkillProvider.
  * Performs dual-prefix lookup in user workspace (/skills/) and global public skills directory.
+ * Standard skill pattern: skills/{skillName}/SKILL.md
  * User skills override global skills with the same name.
  *
  * @author buyc
@@ -102,17 +103,13 @@ public class DefaultSkillProvider implements SkillProvider {
 	private void scanSkills(StorageProvider storage, String basePath, String source, Map<String, SkillInfo> skillsMap) throws IOException {
 		List<StorageProvider.Info> items = storage.listDirectory(basePath);
 		for (StorageProvider.Info item : items) {
-			String relPath = StringUtils.hasText(basePath) ? basePath + "/" + item.path() : item.path();
 			if (item.isDirectory()) {
 				String dirName = item.path().endsWith("/") ? item.path().substring(0, item.path().length() - 1) : item.path();
-				String skillFilePath = relPath.endsWith("/") ? relPath + "SKILL.md" : relPath + "/SKILL.md";
+				String relPath = StringUtils.hasText(basePath) ? basePath + "/" + dirName : dirName;
+				String skillFilePath = relPath + "/SKILL.md";
 				if (storage.exists(skillFilePath)) {
 					addSkillInfo(storage, skillFilePath, dirName, source, skillsMap);
 				}
-			} else if (item.path().endsWith(".md") || item.path().endsWith(".markdown")) {
-				String fileName = item.path();
-				String skillName = fileName.substring(0, fileName.lastIndexOf('.'));
-				addSkillInfo(storage, relPath, skillName, source, skillsMap);
 			}
 		}
 	}
@@ -134,21 +131,19 @@ public class DefaultSkillProvider implements SkillProvider {
 			return storage.readString(dirPath);
 		}
 
-		String filePath = StringUtils.hasText(basePath) ? basePath + "/" + skillName + ".md" : skillName + ".md";
-		if (storage.exists(filePath)) {
-			return storage.readString(filePath);
-		}
-
-		// Also check by scanning if name matches frontmatter name
+		// Also check by scanning directory frontmatter name
 		List<StorageProvider.Info> items = storage.listDirectory(basePath);
 		for (StorageProvider.Info item : items) {
-			String relPath = StringUtils.hasText(basePath) ? basePath + "/" + item.path() : item.path();
-			String candidatePath = item.isDirectory() ? (relPath.endsWith("/") ? relPath + "SKILL.md" : relPath + "/SKILL.md") : relPath;
-			if (storage.exists(candidatePath)) {
-				String content = storage.readString(candidatePath);
-				String parsedName = parseFrontmatter(content, NAME_PATTERN, null);
-				if (skillName.equalsIgnoreCase(parsedName)) {
-					return content;
+			if (item.isDirectory()) {
+				String dirName = item.path().endsWith("/") ? item.path().substring(0, item.path().length() - 1) : item.path();
+				String relPath = StringUtils.hasText(basePath) ? basePath + "/" + dirName : dirName;
+				String candidatePath = relPath + "/SKILL.md";
+				if (storage.exists(candidatePath)) {
+					String content = storage.readString(candidatePath);
+					String parsedName = parseFrontmatter(content, NAME_PATTERN, null);
+					if (skillName.equalsIgnoreCase(parsedName)) {
+						return content;
+					}
 				}
 			}
 		}

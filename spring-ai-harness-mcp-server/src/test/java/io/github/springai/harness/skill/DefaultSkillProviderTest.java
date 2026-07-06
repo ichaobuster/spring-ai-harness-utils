@@ -99,7 +99,6 @@ class DefaultSkillProviderTest {
 	void shouldReturnErrorWhenSkillNotFound() throws IOException {
 		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
 		when(userStorageProvider.exists("skills/unknown/SKILL.md")).thenReturn(false);
-		when(userStorageProvider.exists("skills/unknown.md")).thenReturn(false);
 		when(userStorageProvider.listDirectory("skills")).thenReturn(List.of());
 		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
 

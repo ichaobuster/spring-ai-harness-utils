@@ -4,6 +4,8 @@ import com.aliyun.oss.OSS;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.springai.harness.auth.AuthenticationProvider;
 import io.github.springai.harness.auth.HeaderAuthenticationProvider;
+import io.github.springai.harness.skill.DefaultSkillProvider;
+import io.github.springai.harness.skill.SkillProvider;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -41,8 +43,8 @@ public class HarnessMcpServerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public io.github.springai.harness.skill.SkillProvider skillProvider(StorageProviderFactory storageProviderFactory, HarnessMcpServerProperties properties, OSS ossClient) {
-		return new io.github.springai.harness.skill.DefaultSkillProvider(storageProviderFactory, properties, ossClient);
+	public SkillProvider skillProvider(StorageProviderFactory storageProviderFactory, HarnessMcpServerProperties properties, OSS ossClient) {
+		return new DefaultSkillProvider(storageProviderFactory, properties, ossClient);
 	}
 
 	@Bean

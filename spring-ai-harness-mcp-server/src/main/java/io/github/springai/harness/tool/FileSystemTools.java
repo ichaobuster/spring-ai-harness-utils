@@ -1,5 +1,7 @@
 package io.github.springai.harness.tool;
 
+import io.github.springai.harness.skill.SkillInfo;
+import io.github.springai.harness.skill.SkillProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -31,7 +33,7 @@ public class FileSystemTools {
 	private StorageProviderFactory storageProviderFactory;
 
 	@Autowired
-	private io.github.springai.harness.skill.SkillProvider skillProvider;
+	private SkillProvider skillProvider;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
 		return storageProviderFactory.getStorageProvider(context);
@@ -403,7 +405,7 @@ public class FileSystemTools {
 		""")
 	public String listSkills(McpTransportContext context) { // @formatter:on
 		try {
-			List<io.github.springai.harness.skill.SkillInfo> skills = skillProvider.listSkills(context);
+			List<SkillInfo> skills = skillProvider.listSkills(context);
 			if (skills.isEmpty()) {
 				return "No skills found.";
 			}
@@ -413,7 +415,7 @@ public class FileSystemTools {
 			result.append(String.format("%-24s %-10s %s\n", "NAME", "SOURCE", "DESCRIPTION"));
 			result.append("-".repeat(70)).append("\n");
 
-			for (io.github.springai.harness.skill.SkillInfo skill : skills) {
+			for (SkillInfo skill : skills) {
 				result.append(String.format("%-24s %-10s %s\n", skill.name(), skill.source(), skill.description()));
 			}
 

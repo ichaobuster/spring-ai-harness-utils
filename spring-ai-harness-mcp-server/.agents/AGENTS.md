@@ -186,7 +186,7 @@ MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全
 - **`SkillInfo`**：Skill 描述元数据 Record（`name`, `description`, `path`, `source`）。
 - **`SkillProvider`**：Skills 发现与读取抽象接口，定义 `listSkills(McpTransportContext)` 与 `readSkill(McpTransportContext, String)` 契约。
 - **`DefaultSkillProvider`**：双前缀查询实现。
-  - **用户私有 Skills**：从当前 workspace 的 `/skills/` 目录扫描读取。
+  - **用户私有 Skills**：从当前 workspace 的 `/skills/` 目录扫描读取（标准结构：`skills/{name}/SKILL.md`）。
   - **公共只读 Skills**：从全局 OSS 路径（默认 `mcp/global/skills/`）扫描读取，天然只读。
   - **优先级合并**：同名 Skill 时，用户私有 Skill 优先覆盖公共 Skill。
   - **Frontmatter 解析**：自动解析 `SKILL.md` 的 YAML Frontmatter 中定义的 `name:` 与 `description:`。
@@ -312,6 +312,7 @@ spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
 - 配置属性类使用 `@ConfigurationProperties`
 - 自动配置类使用 `@ConditionalOnMissingBean` 保证可扩展性
 - 遵循 Spring 的 `// @formatter:off` / `// @formatter:on` 注释控制格式化
+- **禁止在代码中硬编码类的全限定名（FQCN）**：代码中应通过 `import` 显式引入类，避免在方法签名、变量类型声明或 `new` 实例化时直接使用完整的 `packageName.ClassName`
 - **常量值修改需同步 prompt**：`StorageProvider` 中标注了「如有变动，需同步修改 prompt」的常量（如 `MAX_LINES`、`MAX_LINE_LENGTH`）与 `@McpTool` 的 description 文本耦合，修改时务必两侧同步
 
 ### 分层职责
