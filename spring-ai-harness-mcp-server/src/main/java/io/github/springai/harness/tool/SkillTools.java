@@ -14,13 +14,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * SkillsTools exposes skill management capabilities via MCP Tools and MCP Resources.
+ * SkillTools exposes skill management capabilities via MCP Tools and MCP Resources.
  *
  * @author buyc
  */
 @Component
 @Slf4j
-public class SkillsTools {
+public class SkillTools {
 
 	@Autowired
 	private SkillProvider skillProvider;

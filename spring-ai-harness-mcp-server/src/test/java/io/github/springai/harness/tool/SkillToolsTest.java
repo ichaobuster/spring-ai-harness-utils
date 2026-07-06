@@ -23,17 +23,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link SkillsTools}.
+ * Unit tests for {@link SkillTools}.
  */
-@DisplayName("SkillsTools Unit Tests")
+@DisplayName("SkillTools Unit Tests")
 @ExtendWith(MockitoExtension.class)
-class SkillsToolsTest {
+class SkillToolsTest {
 
 	@Mock
 	private SkillProvider skillProvider;
 
 	@InjectMocks
-	private SkillsTools skillsTools;
+	private SkillTools skillTools;
 
 	private McpTransportContext context;
 
@@ -51,7 +51,7 @@ class SkillsToolsTest {
 		void shouldReturnNoSkillsMessage() throws IOException {
 			when(skillProvider.listSkills(any())).thenReturn(Collections.emptyList());
 
-			String result = skillsTools.listSkills(context);
+			String result = skillTools.listSkills(context);
 
 			assertThat(result).isEqualTo("No skills found.");
 		}
@@ -63,7 +63,7 @@ class SkillsToolsTest {
 					new SkillInfo("skills/code-review", Map.of("name", "code-review", "description", "Reviews code"), "# Content")
 			));
 
-			String result = skillsTools.listSkills(context);
+			String result = skillTools.listSkills(context);
 
 			assertThat(result)
 					.contains("Available Skills:")
@@ -75,7 +75,7 @@ class SkillsToolsTest {
 		@Test
 		@DisplayName("Should return error when skillName is blank")
 		void shouldReturnErrorWhenSkillNameIsBlank() {
-			String result = skillsTools.readSkill(context, "   ");
+			String result = skillTools.readSkill(context, "   ");
 
 			assertThat(result).isEqualTo("Error: skillName must not be empty.");
 		}
@@ -85,7 +85,7 @@ class SkillsToolsTest {
 		void shouldReturnSkillContent() throws IOException {
 			when(skillProvider.readSkill(any(), eq("code-review"))).thenReturn("Base directory for this skill: skills/code-review\n\n# Code Review Instructions");
 
-			String result = skillsTools.readSkill(context, "code-review");
+			String result = skillTools.readSkill(context, "code-review");
 
 			assertThat(result).contains("# Code Review Instructions");
 		}
@@ -102,7 +102,7 @@ class SkillsToolsTest {
 					new SkillInfo("skills/pdf", Map.of("name", "pdf", "description", "PDF Helper"), "# PDF")
 			));
 
-			String result = skillsTools.listSkillsResource(context);
+			String result = skillTools.listSkillsResource(context);
 
 			assertThat(result)
 					.contains("Available Skills:")
@@ -114,7 +114,7 @@ class SkillsToolsTest {
 		void shouldReadSkillViaResource() throws IOException {
 			when(skillProvider.readSkill(any(), eq("pdf"))).thenReturn("Base directory for this skill: skills/pdf\n\n# PDF Instructions");
 
-			String result = skillsTools.readSkillResource(context, "pdf");
+			String result = skillTools.readSkillResource(context, "pdf");
 
 			assertThat(result).contains("# PDF Instructions");
 		}

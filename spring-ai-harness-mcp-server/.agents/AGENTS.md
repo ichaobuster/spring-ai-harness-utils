@@ -142,7 +142,7 @@ spring-ai-harness-mcp-server/
     │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
     │   │   └── tool/
     │   │       ├── FileSystemTools.java               # MCP 文件工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash）
-    │   │       └── SkillsTools.java                   # MCP Skills 工具与 Resource 定义（ListSkills/ReadSkill/skill://URI）
+    │   │       └── SkillTools.java                    # MCP Skill 工具与 Resource 定义（ListSkills/ReadSkill/skill://URI）
     │   └── resources/
     │       └── application.properties                 # 默认配置
     └── test/
@@ -155,7 +155,7 @@ spring-ai-harness-mcp-server/
             │   └── AliyunOssStorageTest.java
             └── tool/
                 ├── FileSystemToolsTest.java
-                └── SkillsToolsTest.java
+                └── SkillToolsTest.java
 ```
 
 ---
@@ -180,11 +180,11 @@ MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的文
 
 **关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
 
-### 2. SkillsTools (Skills MCP Tools & Resources)
+### 2. SkillTools (Skill MCP Tools & Resources)
 
-文件：`tool/SkillsTools.java`
+文件：`tool/SkillTools.java`
 
-MCP Skills 管理入口类，将 Skills 能力独立抽取，同时暴露 **MCP Tools** 与 **MCP Resources** 两种协议范式：
+MCP Skill 管理入口类，将 Skill 能力独立抽取，同时暴露 **MCP Tools** 与 **MCP Resources** 两种协议范式：
 
 #### MCP Tools
 
