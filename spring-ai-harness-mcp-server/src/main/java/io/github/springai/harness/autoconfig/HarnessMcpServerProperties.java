@@ -30,4 +30,9 @@ public class HarnessMcpServerProperties {
 	 */
 	private String pwd = "workspace/";
 
+	/**
+	 * 公共 Skills 存储前缀
+	 */
+	private String globalSkillsPrefix = "mcp/global/skills/";
+
 }

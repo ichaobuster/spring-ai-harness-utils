@@ -130,19 +130,25 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── AliyunOssProperties.java          # OSS 连接配置属性
     │   │   │   ├── HarnessMcpServerAutoConfiguration.java  # MCP Server 自动配置
     │   │   │   └── HarnessMcpServerProperties.java   # MCP Server 配置属性
+    │   │   ├── skill/
+    │   │   │   ├── SkillInfo.java                     # Skill 描述元数据 Record
+    │   │   │   ├── SkillProvider.java                 # Skill 发现与读取接口
+    │   │   │   └── DefaultSkillProvider.java          # 双前缀（用户+公共）Skill 实现类
     │   │   ├── storage/
     │   │   │   ├── StorageProvider.java               # 存储抽象接口
     │   │   │   ├── StorageProviderFactory.java        # 存储工厂抽象接口
     │   │   │   ├── DefaultStorageProviderFactory.java # 默认存储工厂实现
     │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
     │   │   └── tool/
-    │   │       └── FileSystemTools.java               # MCP 工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash）
+    │   │       └── FileSystemTools.java               # MCP 工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash/ListSkills/ReadSkill）
     │   └── resources/
     │       └── application.properties                 # 默认配置
     └── test/
         └── java/io/github/springai/harness/
             ├── auth/
             │   └── HeaderAuthenticationProviderTest.java
+            ├── skill/
+            │   └── DefaultSkillProviderTest.java
             ├── storage/
             │   └── AliyunOssStorageTest.java
             └── tool/
@@ -157,7 +163,7 @@ spring-ai-harness-mcp-server/
 
 文件：`tool/FileSystemTools.java`
 
-MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全部文件系统能力：
+MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全部文件系统与 Skills 能力：
 
 | 工具名 | 方法 | 功能 |
 |--------|------|------|
@@ -168,10 +174,24 @@ MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的全
 | `Grep` | `grep(ctx, pattern, path, glob, outputMode, ...)` | 正则搜索，支持上下文行、行号、分页等 |
 | `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
 | `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
+| `ListSkills` | `listSkills(ctx)` | 列出工作区可用的全部 Skills（用户私有 + 公共只读），含名称、来源与描述 |
+| `ReadSkill` | `readSkill(ctx, skillName)` | 读取指定 Skill 的完整 `SKILL.md` 指令内容 |
 
 **关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
 
-### 2. Authentication Module (认证模块)
+### 2. Skills Module (Skills 管理模块)
+
+包路径：`skill/`
+
+- **`SkillInfo`**：Skill 描述元数据 Record（`name`, `description`, `path`, `source`）。
+- **`SkillProvider`**：Skills 发现与读取抽象接口，定义 `listSkills(McpTransportContext)` 与 `readSkill(McpTransportContext, String)` 契约。
+- **`DefaultSkillProvider`**：双前缀查询实现。
+  - **用户私有 Skills**：从当前 workspace 的 `/skills/` 目录扫描读取。
+  - **公共只读 Skills**：从全局 OSS 路径（默认 `mcp/global/skills/`）扫描读取，天然只读。
+  - **优先级合并**：同名 Skill 时，用户私有 Skill 优先覆盖公共 Skill。
+  - **Frontmatter 解析**：自动解析 `SKILL.md` 的 YAML Frontmatter 中定义的 `name:` 与 `description:`。
+
+### 3. Authentication Module (认证模块)
 
 包路径：`auth/`
 

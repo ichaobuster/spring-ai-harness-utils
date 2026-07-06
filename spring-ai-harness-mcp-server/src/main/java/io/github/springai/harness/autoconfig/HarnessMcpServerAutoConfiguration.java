@@ -40,6 +40,12 @@ public class HarnessMcpServerAutoConfiguration {
 	}
 
 	@Bean
+	@ConditionalOnMissingBean
+	public io.github.springai.harness.skill.SkillProvider skillProvider(StorageProviderFactory storageProviderFactory, HarnessMcpServerProperties properties, OSS ossClient) {
+		return new io.github.springai.harness.skill.DefaultSkillProvider(storageProviderFactory, properties, ossClient);
+	}
+
+	@Bean
 	@Primary
 	public WebMvcStatelessServerTransport jumpWebMvcStatelessServerTransport(@Qualifier("mcpServerObjectMapper") ObjectMapper objectMapper, McpServerStreamableHttpProperties serverProperties) {
 		return WebMvcStatelessServerTransport.builder()
