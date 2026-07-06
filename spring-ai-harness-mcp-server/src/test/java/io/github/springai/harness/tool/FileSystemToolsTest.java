@@ -47,9 +47,6 @@ class FileSystemToolsTest {
 	@Mock
 	private ServerRequest.Headers headers;
 
-	@Mock
-	private io.github.springai.harness.skill.SkillProvider skillProvider;
-
 	private HarnessMcpServerProperties properties;
 
 	private FileSystemTools fileSystemTools;
@@ -69,7 +66,6 @@ class FileSystemToolsTest {
 
 		fileSystemTools = new FileSystemTools();
 		ReflectionTestUtils.setField(fileSystemTools, "storageProviderFactory", factory);
-		ReflectionTestUtils.setField(fileSystemTools, "skillProvider", skillProvider);
 
 		spyFileSystemTools = spy(fileSystemTools);
 
@@ -639,59 +635,6 @@ class FileSystemToolsTest {
 
 			verify(storageProvider).trash("foo.txt");
 			assertThat(result).isEqualTo("Successfully moved to trash: foo.txt");
-		}
-	}
-
-	@Nested
-	@DisplayName("ListSkills Tool Tests")
-	class ListSkillsToolTests {
-
-		@Test
-		@DisplayName("Should return no skills message when empty")
-		void shouldReturnNoSkillsMessage() throws IOException {
-			when(skillProvider.listSkills(any())).thenReturn(Collections.emptyList());
-
-			String result = fileSystemTools.listSkills(context);
-
-			assertThat(result).isEqualTo("No skills found.");
-		}
-
-		@Test
-		@DisplayName("Should return formatted skills list")
-		void shouldReturnFormattedSkillsList() throws IOException {
-			when(skillProvider.listSkills(any())).thenReturn(List.of(
-					new io.github.springai.harness.skill.SkillInfo("skills/code-review", Map.of("name", "code-review", "description", "Reviews code"), "# Content")
-			));
-
-			String result = fileSystemTools.listSkills(context);
-
-			assertThat(result)
-					.contains("Available Skills:")
-					.contains("code-review")
-					.contains("Reviews code");
-		}
-	}
-
-	@Nested
-	@DisplayName("ReadSkill Tool Tests")
-	class ReadSkillToolTests {
-
-		@Test
-		@DisplayName("Should return error when skillName is blank")
-		void shouldReturnErrorWhenSkillNameIsBlank() {
-			String result = fileSystemTools.readSkill(context, "   ");
-
-			assertThat(result).isEqualTo("Error: skillName must not be empty.");
-		}
-
-		@Test
-		@DisplayName("Should return skill content when skillName is valid")
-		void shouldReturnSkillContent() throws IOException {
-			when(skillProvider.readSkill(any(), eq("code-review"))).thenReturn("# Code Review Skill Instructions");
-
-			String result = fileSystemTools.readSkill(context, "code-review");
-
-			assertThat(result).isEqualTo("# Code Review Skill Instructions");
 		}
 	}
 }

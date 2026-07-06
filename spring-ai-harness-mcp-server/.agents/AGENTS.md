@@ -141,7 +141,8 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── DefaultStorageProviderFactory.java # 默认存储工厂实现
     │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
     │   │   └── tool/
-    │   │       └── FileSystemTools.java               # MCP 工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash/ListSkills/ReadSkill）
+    │   │       ├── FileSystemTools.java               # MCP 文件工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash）
+    │   │       └── SkillsTools.java                   # MCP Skills 工具与 Resource 定义（ListSkills/ReadSkill/skill://URI）
     │   └── resources/
     │       └── application.properties                 # 默认配置
     └── test/
@@ -153,7 +154,8 @@ spring-ai-harness-mcp-server/
             ├── storage/
             │   └── AliyunOssStorageTest.java
             └── tool/
-                └── FileSystemToolsTest.java
+                ├── FileSystemToolsTest.java
+                └── SkillsToolsTest.java
 ```
 
 ---
@@ -164,7 +166,7 @@ spring-ai-harness-mcp-server/
 
 文件：`tool/FileSystemTools.java`
 
-MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全部文件系统与 Skills 能力：
+MCP 工具入口类，提供 7 个 `@McpTool` 方法，是 agent 可调用的文件系统能力：
 
 | 工具名 | 方法 | 功能 |
 |--------|------|------|
@@ -175,10 +177,28 @@ MCP 工具入口类，提供 9 个 `@McpTool` 方法，是 agent 可调用的全
 | `Grep` | `grep(ctx, pattern, path, glob, outputMode, ...)` | 正则搜索，支持上下文行、行号、分页等 |
 | `ListDirectory` | `listDirectory(ctx, path)` | 列出指定目录下的文件和子目录列表（含类型、大小、修改时间） |
 | `Trash` | `trash(ctx, filePath)` | 安全地将文件或目录移动到工作区回收站（`.trash/`） |
+
+**关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
+
+### 2. SkillsTools (Skills MCP Tools & Resources)
+
+文件：`tool/SkillsTools.java`
+
+MCP Skills 管理入口类，将 Skills 能力独立抽取，同时暴露 **MCP Tools** 与 **MCP Resources** 两种协议范式：
+
+#### MCP Tools
+
+| 工具名 | 方法 | 功能 |
+|--------|------|------|
 | `ListSkills` | `listSkills(ctx)` | 列出工作区 `skills/` 目录下可用的全部 Skills，含名称、基目录与描述 |
 | `ReadSkill` | `readSkill(ctx, skillName)` | 读取指定 Skill 的完整 `SKILL.md` 指令内容（附带基目录 Header） |
 
-**关键解耦设计**：`FileSystemTools` 不再感知 Authorization Header 解析逻辑或 OSS Client，而是统一注入 `StorageProviderFactory`。`getStorageProvider(McpTransportContext)` 方法委托给 `StorageProviderFactory` 获取为当前请求身份定制的 `StorageProvider` 实例。
+#### MCP Resources
+
+| Resource URI | 方法 | MimeType | 功能 |
+|--------------|------|----------|------|
+| `skill://list` | `listSkillsResource(ctx)` | `text/plain` | 通过 MCP Resource 协议直接拉取全量 Skills 元数据列表 |
+| `skill://{skillName}` | `readSkillResource(ctx, skillName)` | `text/markdown` | 通过 `skill://{skillName}` URI 协议标准读取指定 Skill 内容 |
 
 ### 2. Skills Module (Skills 管理模块)
 

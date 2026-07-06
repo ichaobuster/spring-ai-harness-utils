@@ -1,7 +1,5 @@
 package io.github.springai.harness.tool;
 
-import io.github.springai.harness.skill.SkillInfo;
-import io.github.springai.harness.skill.SkillProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -31,9 +29,6 @@ public class FileSystemTools {
 
 	@Autowired
 	private StorageProviderFactory storageProviderFactory;
-
-	@Autowired
-	private SkillProvider skillProvider;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
 		return storageProviderFactory.getStorageProvider(context);
@@ -394,55 +389,6 @@ public class FileSystemTools {
 			return "Error moving file or directory to trash: " + e.getMessage();
 		} catch (Exception e) {
 			return "Error: " + e.getMessage();
-		}
-	}
-
-	// @formatter:off
-	@McpTool(name = "ListSkills", description = """
-		Lists all available skills in the workspace (including user skills and global shared skills).
-		Returns skill names, descriptions, and their sources (user or global).
-		Use ReadSkill to view the full instructions for a specific skill.
-		""")
-	public String listSkills(McpTransportContext context) { // @formatter:on
-		try {
-			List<SkillInfo> skills = skillProvider.listSkills(context);
-			if (skills.isEmpty()) {
-				return "No skills found.";
-			}
-
-			StringBuilder result = new StringBuilder();
-			result.append("Available Skills:\n\n");
-			result.append(String.format("%-24s %-30s %s\n", "NAME", "BASE DIRECTORY", "DESCRIPTION"));
-			result.append("-".repeat(80)).append("\n");
-
-			for (SkillInfo skill : skills) {
-				result.append(String.format("%-24s %-30s %s\n", skill.name(), skill.basePath(), skill.description()));
-			}
-
-			return result.toString();
-		} catch (Exception e) {
-			return "Error listing skills: " + e.getMessage();
-		}
-	}
-
-	// @formatter:off
-	@McpTool(name = "ReadSkill", description = """
-		Reads the full content of a specified skill (SKILL.md instructions).
-
-		Usage:
-		- Provide the skillName returned by ListSkills.
-		- Returns the complete markdown instructions for executing the skill.
-		""")
-	public String readSkill(
-			McpTransportContext context,
-			@McpToolParam(description = "The name of the skill to read") String skillName) { // @formatter:on
-		try {
-			if (skillName == null || skillName.isBlank()) {
-				return "Error: skillName must not be empty.";
-			}
-			return skillProvider.readSkill(context, skillName.trim());
-		} catch (Exception e) {
-			return "Error reading skill: " + e.getMessage();
 		}
 	}
 
