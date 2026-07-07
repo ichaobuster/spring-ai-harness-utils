@@ -35,4 +35,24 @@ public class HarnessMcpServerProperties {
 	 */
 	private String adminToken = "admin-secret";
 
+	private ObservabilityProperties observability = new ObservabilityProperties();
+
+	@Data
+	public static class ObservabilityProperties {
+		/**
+		 * Whether to enable OpenTelemetry observability tracing.
+		 */
+		private boolean enabled = false;
+
+		/**
+		 * Exporter type: "otlp", "stdout", "none"
+		 */
+		private String exportType = "stdout";
+
+		/**
+		 * Tracing sampling probability.
+		 */
+		private double probability = 1.0;
+	}
+
 }

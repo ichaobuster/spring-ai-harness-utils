@@ -18,11 +18,17 @@ public class DefaultStorageProviderFactory implements StorageProviderFactory {
 	private final OSS ossClient;
 	private final HarnessMcpServerProperties properties;
 	private final AuthenticationProvider authenticationProvider;
+	private final org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider;
 
 	public DefaultStorageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider) {
+		this(ossClient, properties, authenticationProvider, null);
+	}
+
+	public DefaultStorageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider, org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
 		this.ossClient = ossClient;
 		this.properties = properties;
 		this.authenticationProvider = authenticationProvider;
+		this.observationRegistryProvider = observationRegistryProvider;
 	}
 
 	@Override
@@ -30,6 +36,12 @@ public class DefaultStorageProviderFactory implements StorageProviderFactory {
 		ServerRequest serverRequest = (ServerRequest) context.get(McpTransportContext.KEY);
 		WorkspaceIdentity identity = this.authenticationProvider.authenticate(serverRequest);
 		String workspaceKey = identity.getWorkspacePath(this.properties.getOssPrefix());
-		return new AliyunOssStorage(this.ossClient, this.properties.getOssBucket(), workspaceKey);
+		StorageProvider baseStorage = new AliyunOssStorage(this.ossClient, this.properties.getOssBucket(), workspaceKey);
+
+		io.micrometer.observation.ObservationRegistry registry = observationRegistryProvider != null ? observationRegistryProvider.getIfAvailable() : null;
+		if (registry != null && this.properties.getObservability().isEnabled()) {
+			return new ObservedStorageProvider(baseStorage, registry);
+		}
+		return baseStorage;
 	}
 }

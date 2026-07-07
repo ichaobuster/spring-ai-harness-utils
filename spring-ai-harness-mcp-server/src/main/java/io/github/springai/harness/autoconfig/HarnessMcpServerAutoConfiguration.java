@@ -8,11 +8,14 @@ import io.github.springai.harness.skill.DefaultSkillProvider;
 import io.github.springai.harness.skill.SkillProvider;
 import io.github.springai.harness.snapshot.DefaultSnapshotProvider;
 import io.github.springai.harness.snapshot.SnapshotProvider;
+import io.github.springai.harness.snapshot.ObservedSnapshotProvider;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProviderFactory;
+import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -39,8 +42,12 @@ public class HarnessMcpServerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public StorageProviderFactory storageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider) {
-		return new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider);
+	public StorageProviderFactory storageProviderFactory(
+			OSS ossClient,
+			HarnessMcpServerProperties properties,
+			AuthenticationProvider authenticationProvider,
+			ObjectProvider<ObservationRegistry> observationRegistryProvider) {
+		return new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, observationRegistryProvider);
 	}
 
 	@Bean
@@ -51,8 +58,15 @@ public class HarnessMcpServerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public SnapshotProvider snapshotProvider() {
-		return new DefaultSnapshotProvider();
+	public SnapshotProvider snapshotProvider(
+			HarnessMcpServerProperties properties,
+			ObjectProvider<ObservationRegistry> observationRegistryProvider) {
+		SnapshotProvider baseSnapshotProvider = new DefaultSnapshotProvider();
+		ObservationRegistry registry = observationRegistryProvider.getIfAvailable();
+		if (registry != null && properties.getObservability().isEnabled()) {
+			return new ObservedSnapshotProvider(baseSnapshotProvider, registry);
+		}
+		return baseSnapshotProvider;
 	}
 
 	@Bean
