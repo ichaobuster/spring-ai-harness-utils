@@ -129,7 +129,8 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── AliyunOssAutoConfiguration.java   # OSS 客户端自动配置
     │   │   │   ├── AliyunOssProperties.java          # OSS 连接配置属性
     │   │   │   ├── HarnessMcpServerAutoConfiguration.java  # MCP Server 自动配置
-    │   │   │   └── HarnessMcpServerProperties.java   # MCP Server 配置属性
+    │   │   │   ├── HarnessMcpServerProperties.java   # MCP Server 配置属性
+    │   │   │   └── ObservabilityAutoConfiguration.java  # 可观测性自动配置
     │   │   ├── controller/
     │   │   │   ├── WorkspaceApiController.java        # 用户工作区文件与快照管理 REST Controller (/api/v1/workspace)
     │   │   │   └── AdminApiController.java            # 管理员工作区与文件运维 REST Controller (/api/v1/admin)
@@ -144,12 +145,14 @@ spring-ai-harness-mcp-server/
     │   │   ├── snapshot/
     │   │   │   ├── SnapshotInfo.java                  # 快照描述元数据 Record (snapshotId, filePath, action, timestamp)
     │   │   │   ├── SnapshotProvider.java              # 快照创建、列表与恢复接口
-    │   │   │   └── DefaultSnapshotProvider.java       # 基于 .snapshots/ 的快照提供者实现
+    │   │   │   ├── DefaultSnapshotProvider.java       # 基于 .snapshots/ 的快照提供者实现
+    │   │   │   └── ObservedSnapshotProvider.java      # 快照可观测装饰类
     │   │   ├── storage/
     │   │   │   ├── StorageProvider.java               # 存储抽象接口
     │   │   │   ├── StorageProviderFactory.java        # 存储工厂抽象接口
     │   │   │   ├── DefaultStorageProviderFactory.java # 默认存储工厂实现
-    │   │   │   └── AliyunOssStorage.java              # 阿里云 OSS 实现
+    │   │   │   ├── AliyunOssStorage.java              # 阿里云 OSS 实现
+    │   │   │   └── ObservedStorageProvider.java       # 存储可观测装饰类
     │   │   └── tool/
     │   │       ├── FileSystemTools.java               # MCP 文件工具定义（Read/Write/Edit/Glob/Grep/ListDirectory/Trash/ListSnapshots/Rewind）
     │   │       └── SkillTools.java                    # MCP Skill 工具与 Resource 定义（ListSkills/ReadSkill/skill://URI）
@@ -158,16 +161,24 @@ spring-ai-harness-mcp-server/
     └── test/
         └── java/io/github/springai/harness/
             ├── auth/
-            │   └── HeaderAuthenticationProviderTest.java
+            │   ├── HeaderAuthenticationProviderTest.java
+            │   └── AuthenticationExceptionTest.java
+            ├── autoconfig/
+            │   ├── AliyunOssAutoConfigurationTest.java
+            │   ├── HarnessMcpServerAutoConfigurationTest.java
+            │   └── ObservabilityAutoConfigurationTest.java
             ├── controller/
             │   ├── WorkspaceApiControllerTest.java
             │   └── AdminApiControllerTest.java
             ├── skill/
             │   └── DefaultSkillProviderTest.java
             ├── snapshot/
-            │   └── DefaultSnapshotProviderTest.java
+            │   ├── DefaultSnapshotProviderTest.java
+            │   └── ObservedSnapshotProviderTest.java
             ├── storage/
-            │   └── AliyunOssStorageTest.java
+            │   ├── AliyunOssStorageTest.java
+            │   ├── DefaultStorageProviderFactoryTest.java
+            │   └── ObservedStorageProviderTest.java
             └── tool/
                 ├── FileSystemToolsTest.java
                 └── SkillToolsTest.java
@@ -317,6 +328,14 @@ private String getFullKey(String path) {
   - 配置 Stateless MCP Server 传输层，通过 `contextExtractor` 将 `ServerRequest` 注入 `McpTransportContext`
   - 自动装配 `@ConditionalOnMissingBean` 的 `AuthenticationProvider`（默认 `HeaderAuthenticationProvider`）
   - 自动装配 `@ConditionalOnMissingBean` 的 `StorageProviderFactory`（默认 `DefaultStorageProviderFactory`）
+- **`ObservabilityAutoConfiguration`**：基于 `spring.ai.harness.mcp.server.observability.enabled=true` 条件加载，自动装配并向容器注册 OpenTelemetry `Sampler`、`Resource` 和 `SpanExporter` (包括 Stdout 控制台及 Grpc OTLP 导出实现)。
+
+### 5. Observability Module (可观测性模块)
+
+可观测模块采用 **装饰器模式 (Decorator Pattern)** 实现真正的轻量化与可插拔设计：
+- **`ObservedStorageProvider`**：对底层 `StorageProvider` (如 `AliyunOssStorage`) 的所有读、写、搜、删方法进行装饰包裹，在执行前后触发 Micrometer `Observation` 数据打点。
+- **`ObservedSnapshotProvider`**：对底层 `SnapshotProvider` 的快照创建及版本回退（`rewind`）方法进行装饰包裹。
+- **零开销可插拔装配**：在 `DefaultStorageProviderFactory` 与 `HarnessMcpServerAutoConfiguration` 中通过 `ObjectProvider<ObservationRegistry>` 按需探测注册。若可观测性关闭，工厂类直接返回原生存储实例，避免了每一次文件操作都要做 `if` 分支校验，保证了完全零运行开销。
 
 ---
 
@@ -342,6 +361,13 @@ spring.ai.harness.mcp.server.oss-prefix=mcp/workspaces/
 
 # MCP 端点 (默认值: /mcp)
 spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
+
+# 可观测链路追踪 (默认值: false)
+spring.ai.harness.mcp.server.observability.enabled=false
+# 可观测数据导出方式: otlp, stdout, none (默认值: stdout)
+spring.ai.harness.mcp.server.observability.export-type=stdout
+# 采样率: 0.0 ~ 1.0 (默认值: 1.0)
+spring.ai.harness.mcp.server.observability.probability=1.0
 ```
 
 ---
