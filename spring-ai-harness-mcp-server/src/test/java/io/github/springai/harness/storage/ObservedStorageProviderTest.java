@@ -1,5 +1,6 @@
 package io.github.springai.harness.storage;
 
+import io.github.springai.harness.storage.StorageProvider.GrepOutputMode;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
@@ -212,5 +213,42 @@ class ObservedStorageProviderTest {
 				() -> observedStorageProvider.rename("old.txt", "new.txt")
 		);
 		assertThat(startedObservations).contains("mcp.storage.rename");
+	}
+
+	@Test
+	@DisplayName("Should trace grep and delegate")
+	void shouldTraceGrep() throws IOException {
+		when(delegate.grep("pattern", "src", "*.txt", GrepOutputMode.content, 1, 1, null, true, false, null, null, false))
+				.thenReturn(List.of("src/a.txt:1:pattern"));
+
+		List<String> result = observedStorageProvider.grep("pattern", "src", "*.txt", GrepOutputMode.content, 1, 1, null, true, false, null, null, false);
+
+		assertThat(result).containsExactly("src/a.txt:1:pattern");
+		assertThat(startedObservations).contains("mcp.storage.grep");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException in grep")
+	void shouldPropagateIOExceptionInGrep() throws IOException {
+		when(delegate.grep(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+				.thenThrow(new IOException("Grep failure"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedStorageProvider.grep("pattern", "src", "*.txt", GrepOutputMode.content, 1, 1, null, true, false, null, null, false)
+		);
+		assertThat(startedObservations).contains("mcp.storage.grep");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException in delete to cover observeVoid catch block")
+	void shouldPropagateIOExceptionInDelete() throws IOException {
+		doThrow(new IOException("Delete failure")).when(delegate).delete("foo.txt");
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedStorageProvider.delete("foo.txt")
+		);
+		assertThat(startedObservations).contains("mcp.storage.delete");
 	}
 }
