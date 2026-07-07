@@ -49,7 +49,10 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 			return snapshotId;
 		} catch (Exception e) {
 			log.warn("Failed to create snapshot for {}: {}", filePath, e.getMessage());
-			return null;
+			if (e instanceof IOException) {
+				throw (IOException) e;
+			}
+			throw new IOException("Failed to create snapshot for " + filePath, e);
 		}
 	}
 
@@ -75,17 +78,13 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 				continue;
 			}
 
-			try {
-				String metaContent = storage.readString(metaPath);
-				SnapshotMeta meta = parseMeta(metaContent);
-				if (meta != null) {
-					if (!StringUtils.hasText(filterFilePath) || filterFilePath.trim().equals(meta.filePath)) {
-						String snapshotPath = SNAPSHOT_DIR + "/" + snapshotId + "/" + meta.filePath;
-						result.add(new SnapshotInfo(snapshotId, meta.filePath, meta.action, snapshotPath, meta.timestamp));
-					}
+			String metaContent = storage.readString(metaPath);
+			SnapshotMeta meta = parseMeta(metaContent);
+			if (meta != null) {
+				if (!StringUtils.hasText(filterFilePath) || filterFilePath.trim().equals(meta.filePath)) {
+					String snapshotPath = SNAPSHOT_DIR + "/" + snapshotId + "/" + meta.filePath;
+					result.add(new SnapshotInfo(snapshotId, meta.filePath, meta.action, snapshotPath, meta.timestamp));
 				}
-			} catch (Exception e) {
-				log.warn("Failed to read snapshot metadata for {}: {}", snapshotId, e.getMessage());
 			}
 		}
 
@@ -96,25 +95,25 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 	@Override
 	public String rewind(StorageProvider storage, String snapshotId) throws IOException {
 		if (storage == null || !StringUtils.hasText(snapshotId)) {
-			return "Error: snapshotId must not be empty.";
+			throw new IllegalArgumentException("snapshotId must not be empty.");
 		}
 
 		String cleanId = snapshotId.trim();
 		String metaPath = SNAPSHOT_DIR + "/" + cleanId + "/meta.txt";
 
 		if (!storage.exists(metaPath)) {
-			return "Error: Snapshot not found: " + cleanId;
+			throw new java.io.FileNotFoundException("Snapshot not found: " + cleanId);
 		}
 
 		String metaContent = storage.readString(metaPath);
 		SnapshotMeta meta = parseMeta(metaContent);
 		if (meta == null || !StringUtils.hasText(meta.filePath)) {
-			return "Error: Corrupted snapshot metadata for: " + cleanId;
+			throw new IOException("Corrupted snapshot metadata for: " + cleanId);
 		}
 
 		String snapshotPath = SNAPSHOT_DIR + "/" + cleanId + "/" + meta.filePath;
 		if (!storage.exists(snapshotPath)) {
-			return "Error: Snapshot file content missing: " + cleanId;
+			throw new java.io.FileNotFoundException("Snapshot file content missing: " + cleanId);
 		}
 
 		// Create a snapshot of current state before rewinding

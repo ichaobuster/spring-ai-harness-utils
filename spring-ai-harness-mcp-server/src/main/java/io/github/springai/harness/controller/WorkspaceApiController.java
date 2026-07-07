@@ -141,9 +141,6 @@ public class WorkspaceApiController {
 		try {
 			StorageProvider storage = getStorageProvider(request);
 			String result = snapshotProvider.rewind(storage, snapshotId);
-			if (result.startsWith("Error:")) {
-				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", result));
-			}
 			return ResponseEntity.ok(Map.of("message", result));
 		} catch (Exception e) {
 			log.error("Failed to rewind snapshot '{}': {}", snapshotId, e.getMessage());

@@ -90,13 +90,14 @@ class DefaultSkillProviderTest {
 	}
 
 	@Test
-	@DisplayName("Should return error message when skill is not found")
+	@DisplayName("Should throw FileNotFoundException when skill is not found")
 	void shouldReturnErrorWhenSkillNotFound() throws IOException {
 		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
 		when(userStorageProvider.exists("skills")).thenReturn(false);
 
-		String result = skillProvider.readSkill(context, "unknown");
-
-		assertThat(result).isEqualTo("Error: Skill not found: unknown");
+		org.junit.jupiter.api.Assertions.assertThrows(
+				java.io.FileNotFoundException.class,
+				() -> skillProvider.readSkill(context, "unknown")
+		);
 	}
 }

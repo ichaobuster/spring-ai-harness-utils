@@ -265,12 +265,12 @@ class WorkspaceApiControllerTest {
 	@DisplayName("Should return 400 when rewind returns error message")
 	void shouldReturn400WhenRewindReturnsError() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
-		when(snapshotProvider.rewind(storageProvider, "invalid-snap")).thenReturn("Error: Snapshot not found: invalid-snap");
+		when(snapshotProvider.rewind(storageProvider, "invalid-snap")).thenThrow(new java.io.FileNotFoundException("Snapshot not found: invalid-snap"));
 
 		mockMvc.perform(post("/api/v1/workspace/rewind/invalid-snap")
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.error").value("Error: Snapshot not found: invalid-snap"));
+				.andExpect(jsonPath("$.error").value("Snapshot not found: invalid-snap"));
 	}
 
 	@Test
