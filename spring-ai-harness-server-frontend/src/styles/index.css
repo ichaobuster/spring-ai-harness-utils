@@ -137,3 +137,16 @@ body {
   color: #38bdf8 !important;
   border-color: var(--border-color) !important;
 }
+
+/* Dark Table overrides for MCP Debugger */
+.dark-table .ant-table {
+  background: transparent !important;
+}
+.dark-table .ant-table-container {
+  background: transparent !important;
+}
+.dark-table .ant-table-cell {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+

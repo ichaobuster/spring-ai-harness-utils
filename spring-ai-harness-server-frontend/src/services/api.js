@@ -92,5 +92,15 @@ export const api = {
       headers: { 'X-Admin-Token': adminToken }
     });
     return res.data;
+  },
+
+  callMcp: async (authHeader, payload) => {
+    const res = await axios.post(`${BASE_URL}/mcp`, payload, {
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json'
+      }
+    });
+    return res.data;
   }
 };
