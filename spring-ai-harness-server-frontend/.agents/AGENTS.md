@@ -8,17 +8,8 @@ Spring AI Harness Server Web UI Manager module for OSS File & Workspace Manageme
 spring-ai-harness-server-frontend/
 ├── .agents/
 │   └── AGENTS.md                # Dedicated frontend documentation & guidelines
-├── config/                      # Webpack and Jest configuration files (Ejected CRA)
-│   ├── env.js
-│   ├── webpack.config.js
-│   └── paths.js
-├── scripts/                     # Start, build, and test scripts (Ejected CRA)
-│   ├── start.js
-│   ├── build.js
-│   └── test.js
-├── public/
-│   ├── favicon.ico
-│   └── index.html               # Entry HTML with custom fonts & viewport settings
+├── index.html                   # Entry HTML with custom fonts & script injection
+├── vite.config.js               # Vite project configuration with proxies & react plugin
 ├── src/
 │   ├── components/
 │   │   ├── FileExplorer.js      # Main Windows Explorer style file manager
@@ -34,16 +25,16 @@ spring-ai-harness-server-frontend/
 │   │   └── index.css            # Dark mode tokens, glassmorphism, micro-animations
 │   ├── App.js                   # Root React layout containing the navigation header
 │   └── index.js                 # React DOM root entry
-└── package.json                 # Ejected CRA React project configuration
+└── package.json                 # React project configuration with Vite scripts
 ```
 
 ## Tech Stack & Design Rules
-- **Framework**: React 18 (JavaScript) with CRA Ejected Webpack structure.
+- **Framework**: React 18 (JavaScript) with Vite build system.
 - **UI Library**: Ant Design (`antd` v5) + `@ant-design/icons`.
 - **Styling**: Modern dark glassmorphism theme (`index.css`), smooth hover transitions, vibrant action tags.
 - **State & Drag & Drop**: Native HTML5 Drag & Drop API for moving files/folders across breadcrumb paths and target folders.
 - **MCP Client Debugging**: Calls standard JSON-RPC 2.0 methods (`tools/list`, `tools/call`, `resources/list`, `resources/read`) on `/mcp` via HTTP POST, displaying the raw wire traffic in a split inspector view.
 
 ## Available Scripts
-- `npm start`: Runs the app in development mode at http://localhost:3000
-- `npm run build`: Bundles the app for production in the `build/` folder.
+- `npm run dev`: Runs the app in development mode at http://localhost:3000
+- `npm run build`: Bundles the app for production in the `dist/` folder.
