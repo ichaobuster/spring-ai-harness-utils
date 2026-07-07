@@ -100,4 +100,23 @@ class DefaultSkillProviderTest {
 				() -> skillProvider.readSkill(context, "unknown")
 		);
 	}
+
+	@Test
+	@DisplayName("Should throw IllegalArgumentException when skillName is empty")
+	void shouldThrowExceptionWhenSkillNameIsEmpty() {
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IllegalArgumentException.class,
+				() -> skillProvider.readSkill(context, "")
+		);
+	}
+
+	@Test
+	@DisplayName("Should return empty list when skills folder does not exist")
+	void shouldReturnEmptyListWhenSkillsFolderDoesNotExist() throws IOException {
+		when(storageProviderFactory.getStorageProvider(context)).thenReturn(userStorageProvider);
+		when(userStorageProvider.exists("skills")).thenReturn(false);
+
+		List<SkillInfo> result = skillProvider.listSkills(context);
+		assertThat(result).isEmpty();
+	}
 }

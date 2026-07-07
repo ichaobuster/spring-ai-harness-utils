@@ -104,4 +104,113 @@ class ObservedStorageProviderTest {
 		assertThat(startedObservations).contains("mcp.storage.glob");
 		verify(delegate).glob("*.txt", "src");
 	}
+
+	@Test
+	@DisplayName("Should trace isDirectory and delegate")
+	void shouldTraceIsDirectory() {
+		when(delegate.isDirectory("src")).thenReturn(true);
+
+		boolean result = observedStorageProvider.isDirectory("src");
+
+		assertThat(result).isTrue();
+		assertThat(startedObservations).contains("mcp.storage.isDirectory");
+	}
+
+	@Test
+	@DisplayName("Should trace listDirectory and delegate")
+	void shouldTraceListDirectory() throws IOException {
+		when(delegate.listDirectory("src")).thenReturn(List.of());
+
+		List<StorageProvider.Info> result = observedStorageProvider.listDirectory("src");
+
+		assertThat(result).isEmpty();
+		assertThat(startedObservations).contains("mcp.storage.listDirectory");
+	}
+
+	@Test
+	@DisplayName("Should trace readAllLines and delegate")
+	void shouldTraceReadAllLines() throws IOException {
+		when(delegate.readAllLines("foo.txt")).thenReturn(List.of("line1"));
+
+		List<String> result = observedStorageProvider.readAllLines("foo.txt");
+
+		assertThat(result).containsExactly("line1");
+		assertThat(startedObservations).contains("mcp.storage.readAllLines");
+	}
+
+	@Test
+	@DisplayName("Should trace trash and delegate")
+	void shouldTraceTrash() throws IOException {
+		observedStorageProvider.trash("foo.txt");
+
+		assertThat(startedObservations).contains("mcp.storage.trash");
+		verify(delegate).trash("foo.txt");
+	}
+
+	@Test
+	@DisplayName("Should trace delete and delegate")
+	void shouldTraceDelete() throws IOException {
+		observedStorageProvider.delete("foo.txt");
+
+		assertThat(startedObservations).contains("mcp.storage.delete");
+		verify(delegate).delete("foo.txt");
+	}
+
+	@Test
+	@DisplayName("Should trace getInfo and delegate")
+	void shouldTraceGetInfo() throws IOException {
+		StorageProvider.Info info = new StorageProvider.Info("foo.txt", false, false, 100, 1000);
+		when(delegate.getInfo("foo.txt")).thenReturn(info);
+
+		StorageProvider.Info result = observedStorageProvider.getInfo("foo.txt");
+
+		assertThat(result).isEqualTo(info);
+		assertThat(startedObservations).contains("mcp.storage.getInfo");
+	}
+
+	@Test
+	@DisplayName("Should return wrapped ObservedStorageProvider for subDirProvider")
+	void shouldWrapSubDirProvider() {
+		StorageProvider mockSub = mock(StorageProvider.class);
+		when(delegate.subDirProvider("sub")).thenReturn(mockSub);
+
+		StorageProvider result = observedStorageProvider.subDirProvider("sub");
+
+		assertThat(result).isInstanceOf(ObservedStorageProvider.class);
+	}
+
+	@Test
+	@DisplayName("Should propagate exception in exists")
+	void shouldPropagateExceptionInExists() {
+		when(delegate.exists("foo.txt")).thenThrow(new RuntimeException("Fail"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				RuntimeException.class,
+				() -> observedStorageProvider.exists("foo.txt")
+		);
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException in readString")
+	void shouldPropagateIOExceptionInReadString() throws IOException {
+		when(delegate.readString("foo.txt")).thenThrow(new IOException("Disk failure"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedStorageProvider.readString("foo.txt")
+		);
+		assertThat(startedObservations).contains("mcp.storage.readString");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException in rename")
+	void shouldPropagateIOExceptionInRename() throws IOException {
+		doThrow(new IOException("Disk failure")).when(delegate).rename("old.txt", "new.txt");
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedStorageProvider.rename("old.txt", "new.txt")
+		);
+		assertThat(startedObservations).contains("mcp.storage.rename");
+	}
 }

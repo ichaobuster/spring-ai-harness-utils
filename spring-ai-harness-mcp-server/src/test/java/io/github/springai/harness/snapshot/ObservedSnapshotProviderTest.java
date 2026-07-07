@@ -78,7 +78,6 @@ class ObservedSnapshotProviderTest {
 		assertThat(startedObservations).contains("mcp.snapshot.list");
 		verify(delegate).listSnapshots(storage, "foo.txt");
 	}
-
 	@Test
 	@DisplayName("Should trace rewind and delegate")
 	void shouldTraceRewind() throws IOException {
@@ -89,5 +88,41 @@ class ObservedSnapshotProviderTest {
 		assertThat(result).isEqualTo("Successfully rewound.");
 		assertThat(startedObservations).contains("mcp.snapshot.rewind");
 		verify(delegate).rewind(storage, "snap123");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException when delegate fails in createSnapshot")
+	void shouldPropagateExceptionInCreateSnapshot() throws IOException {
+		when(delegate.createSnapshot(storage, "foo.txt", "WRITE")).thenThrow(new IOException("Fail"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedSnapshotProvider.createSnapshot(storage, "foo.txt", "WRITE")
+		);
+		assertThat(startedObservations).contains("mcp.snapshot.create");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException when delegate fails in listSnapshots")
+	void shouldPropagateExceptionInListSnapshots() throws IOException {
+		when(delegate.listSnapshots(storage, "foo.txt")).thenThrow(new IOException("Fail"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedSnapshotProvider.listSnapshots(storage, "foo.txt")
+		);
+		assertThat(startedObservations).contains("mcp.snapshot.list");
+	}
+
+	@Test
+	@DisplayName("Should propagate IOException when delegate fails in rewind")
+	void shouldPropagateExceptionInRewind() throws IOException {
+		when(delegate.rewind(storage, "snap123")).thenThrow(new IOException("Fail"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> observedSnapshotProvider.rewind(storage, "snap123")
+		);
+		assertThat(startedObservations).contains("mcp.snapshot.rewind");
 	}
 }

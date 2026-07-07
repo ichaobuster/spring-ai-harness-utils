@@ -103,4 +103,96 @@ class DefaultSnapshotProviderTest {
 		assertThat(result).contains("Successfully rewound file 'foo.txt' to snapshot state [snap1]");
 		verify(storage).writeString("foo.txt", "Original Content");
 	}
+
+	@Test
+	@DisplayName("Should return null or throw when parameters are invalid in createSnapshot")
+	void shouldReturnNullWhenParametersInvalid() throws IOException {
+		assertThat(snapshotProvider.createSnapshot(null, "foo.txt", "WRITE")).isNull();
+		assertThat(snapshotProvider.createSnapshot(storage, "", "WRITE")).isNull();
+	}
+
+	@Test
+	@DisplayName("Should return null when storage isDirectory is true")
+	void shouldReturnNullWhenPathIsDirectory() throws IOException {
+		when(storage.exists("dir")).thenReturn(true);
+		when(storage.isDirectory("dir")).thenReturn(true);
+
+		String result = snapshotProvider.createSnapshot(storage, "dir", "WRITE");
+		assertThat(result).isNull();
+	}
+
+	@Test
+	@DisplayName("Should throw IOException when storage operation fails in createSnapshot")
+	void shouldThrowExceptionWhenStorageFailsInCreate() throws IOException {
+		when(storage.exists("foo.txt")).thenReturn(true);
+		when(storage.isDirectory("foo.txt")).thenReturn(false);
+		when(storage.readString("foo.txt")).thenThrow(new IOException("Disk read error"));
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> snapshotProvider.createSnapshot(storage, "foo.txt", "WRITE")
+		);
+	}
+
+	@Test
+	@DisplayName("Should return empty list or throw when storage is null or missing in listSnapshots")
+	void shouldReturnEmptyListWhenStorageNullOrMissing() throws IOException {
+		assertThat(snapshotProvider.listSnapshots(null, "foo.txt")).isEmpty();
+		
+		when(storage.exists(".snapshots")).thenReturn(false);
+		assertThat(snapshotProvider.listSnapshots(storage, "foo.txt")).isEmpty();
+	}
+
+	@Test
+	@DisplayName("Should throw IllegalArgumentException when snapshotId is empty in rewind")
+	void shouldThrowExceptionWhenSnapshotIdIsEmptyInRewind() {
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IllegalArgumentException.class,
+				() -> snapshotProvider.rewind(storage, "")
+		);
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IllegalArgumentException.class,
+				() -> snapshotProvider.rewind(null, "snap")
+		);
+	}
+
+	@Test
+	@DisplayName("Should throw FileNotFoundException when meta.txt does not exist in rewind")
+	void shouldThrowFileNotFoundWhenMetaMissingInRewind() throws IOException {
+		when(storage.exists(".snapshots/missing-snap/meta.txt")).thenReturn(false);
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				java.io.FileNotFoundException.class,
+				() -> snapshotProvider.rewind(storage, "missing-snap")
+		);
+	}
+
+	@Test
+	@DisplayName("Should throw IOException when metadata is corrupted in rewind")
+	void shouldThrowExceptionWhenMetadataCorrupted() throws IOException {
+		when(storage.exists(".snapshots/corrupt-snap/meta.txt")).thenReturn(true);
+		when(storage.readString(".snapshots/corrupt-snap/meta.txt")).thenReturn("bad-format");
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				IOException.class,
+				() -> snapshotProvider.rewind(storage, "corrupt-snap")
+		);
+	}
+
+	@Test
+	@DisplayName("Should throw FileNotFoundException when snapshot content file is missing in rewind")
+	void shouldThrowFileNotFoundWhenContentMissingInRewind() throws IOException {
+		when(storage.exists(".snapshots/nocontent-snap/meta.txt")).thenReturn(true);
+		when(storage.readString(".snapshots/nocontent-snap/meta.txt")).thenReturn("""
+				filePath=foo.txt
+				action=EDIT
+				timestamp=100000
+				""");
+		when(storage.exists(".snapshots/nocontent-snap/foo.txt")).thenReturn(false);
+
+		org.junit.jupiter.api.Assertions.assertThrows(
+				java.io.FileNotFoundException.class,
+				() -> snapshotProvider.rewind(storage, "nocontent-snap")
+		);
+	}
 }
