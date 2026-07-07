@@ -4,7 +4,9 @@ import com.aliyun.oss.OSS;
 import io.github.springai.harness.auth.AuthenticationProvider;
 import io.github.springai.harness.auth.WorkspaceIdentity;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
+import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.servlet.function.ServerRequest;
 
 /**
@@ -18,13 +20,13 @@ public class DefaultStorageProviderFactory implements StorageProviderFactory {
 	private final OSS ossClient;
 	private final HarnessMcpServerProperties properties;
 	private final AuthenticationProvider authenticationProvider;
-	private final org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider;
+	private final ObjectProvider<ObservationRegistry> observationRegistryProvider;
 
 	public DefaultStorageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider) {
 		this(ossClient, properties, authenticationProvider, null);
 	}
 
-	public DefaultStorageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider, org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
+	public DefaultStorageProviderFactory(OSS ossClient, HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider, ObjectProvider<ObservationRegistry> observationRegistryProvider) {
 		this.ossClient = ossClient;
 		this.properties = properties;
 		this.authenticationProvider = authenticationProvider;
@@ -38,7 +40,7 @@ public class DefaultStorageProviderFactory implements StorageProviderFactory {
 		String workspaceKey = identity.getWorkspacePath(this.properties.getOssPrefix());
 		StorageProvider baseStorage = new AliyunOssStorage(this.ossClient, this.properties.getOssBucket(), workspaceKey);
 
-		io.micrometer.observation.ObservationRegistry registry = observationRegistryProvider != null ? observationRegistryProvider.getIfAvailable() : null;
+		ObservationRegistry registry = observationRegistryProvider != null ? observationRegistryProvider.getIfAvailable() : null;
 		if (registry != null && this.properties.getObservability().isEnabled()) {
 			return new ObservedStorageProvider(baseStorage, registry);
 		}
