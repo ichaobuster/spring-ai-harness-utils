@@ -364,8 +364,8 @@ spring.ai.mcp.server.stateless.mcp-endpoint=/mcp
 
 # 可观测链路追踪 (默认值: false)
 spring.ai.harness.mcp.server.observability.enabled=false
-# 可观测数据导出方式: otlp, stdout, none (默认值: stdout)
-spring.ai.harness.mcp.server.observability.export-type=stdout
+# 可观测数据导出方式: otlp, none (默认值: otlp)
+spring.ai.harness.mcp.server.observability.export-type=otlp
 # 采样率: 0.0 ~ 1.0 (默认值: 1.0)
 spring.ai.harness.mcp.server.observability.probability=1.0
 ```

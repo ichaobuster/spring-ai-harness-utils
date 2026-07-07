@@ -4,7 +4,7 @@ import io.github.springai.harness.autoconfig.HarnessMcpServerProperties.Observab
 import io.micrometer.observation.ObservationRegistry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
@@ -48,8 +48,6 @@ public class ObservabilityAutoConfiguration {
 
 		if ("otlp".equalsIgnoreCase(type)) {
 			return OtlpGrpcSpanExporter.builder().build();
-		} else if ("stdout".equalsIgnoreCase(type)) {
-			return new LoggingSpanExporter();
 		} else {
 			return SpanExporter.composite();
 		}

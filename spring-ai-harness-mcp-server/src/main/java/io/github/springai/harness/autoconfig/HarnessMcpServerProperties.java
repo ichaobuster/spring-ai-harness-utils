@@ -45,9 +45,9 @@ public class HarnessMcpServerProperties {
 		private boolean enabled = false;
 
 		/**
-		 * Exporter type: "otlp", "stdout", "none"
+		 * Exporter type: "otlp", "none"
 		 */
-		private String exportType = "stdout";
+		private String exportType = "otlp";
 
 		/**
 		 * Tracing sampling probability.

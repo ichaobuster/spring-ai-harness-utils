@@ -36,8 +36,8 @@ spring.ai.harness.mcp.server.admin-token=admin-secret
 
 # Enable OpenTelemetry tracing (default: false)
 spring.ai.harness.mcp.server.observability.enabled=false
-# Exporter type: "otlp", "stdout", "none" (default: stdout)
-spring.ai.harness.mcp.server.observability.export-type=stdout
+# Exporter type: "otlp", "none" (default: otlp)
+spring.ai.harness.mcp.server.observability.export-type=otlp
 # Tracing sampling probability (default: 1.0)
 spring.ai.harness.mcp.server.observability.probability=1.0
 ```

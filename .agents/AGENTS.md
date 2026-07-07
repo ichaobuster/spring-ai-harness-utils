@@ -57,8 +57,8 @@ spring.ai.harness.mcp.server.oss-bucket=<your-bucket-name>
 
 # 可观测链路追踪 (默认值: false)
 spring.ai.harness.mcp.server.observability.enabled=false
-# 导出形式: otlp, stdout, none (默认: stdout)
-spring.ai.harness.mcp.server.observability.export-type=stdout
+# 导出形式: otlp, none (默认: otlp)
+spring.ai.harness.mcp.server.observability.export-type=otlp
 ```
 
 ---

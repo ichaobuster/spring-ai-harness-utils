@@ -61,12 +61,11 @@ class ObservabilityAutoConfigurationTest {
 	}
 
 	@Test
-	@DisplayName("Should configure observability beans when enabled with stdout export")
-	void shouldConfigureObservabilityWithStdout() {
+	@DisplayName("Should configure observability beans when enabled with default settings")
+	void shouldConfigureObservabilityWithDefaultSettings() {
 		this.contextRunner
 				.withPropertyValues(
-						"spring.ai.harness.mcp.server.observability.enabled=true",
-						"spring.ai.harness.mcp.server.observability.export-type=stdout"
+						"spring.ai.harness.mcp.server.observability.enabled=true"
 				)
 				.run(context -> {
 					assertThat(context).hasSingleBean(Sampler.class);
