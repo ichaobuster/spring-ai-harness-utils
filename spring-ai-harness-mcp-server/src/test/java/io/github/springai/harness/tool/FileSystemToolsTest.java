@@ -1,8 +1,11 @@
 package io.github.springai.harness.tool;
 
 import com.aliyun.oss.OSS;
+import io.github.springai.harness.auth.AuthenticationException;
 import io.github.springai.harness.auth.HeaderAuthenticationProvider;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
+import io.github.springai.harness.snapshot.SnapshotInfo;
+import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.AliyunOssStorage;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProvider;
@@ -45,7 +48,7 @@ class FileSystemToolsTest {
 	private ServerRequest serverRequest;
 
 	@Mock
-	private io.github.springai.harness.snapshot.SnapshotProvider snapshotProvider;
+	private SnapshotProvider snapshotProvider;
 
 	private HarnessMcpServerProperties properties;
 
@@ -90,7 +93,7 @@ class FileSystemToolsTest {
 		@DisplayName("Should throw AuthenticationException when ServerRequest is missing in context")
 		void shouldThrowWhenServerRequestMissing() {
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(context))
-					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
+					.isInstanceOf(AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
@@ -102,7 +105,7 @@ class FileSystemToolsTest {
 			McpTransportContext ctx = McpTransportContext.create(Map.of(McpTransportContext.KEY, req));
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
+					.isInstanceOf(AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
@@ -116,7 +119,7 @@ class FileSystemToolsTest {
 			McpTransportContext ctx = McpTransportContext.create(Map.of(McpTransportContext.KEY, req));
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
+					.isInstanceOf(AuthenticationException.class)
 					.hasMessage("Missing Authorization header");
 		}
 
@@ -126,7 +129,7 @@ class FileSystemToolsTest {
 			McpTransportContext ctx = createValidContext("invalid-auth");
 
 			assertThatThrownBy(() -> fileSystemTools.getStorageProvider(ctx))
-					.isInstanceOf(io.github.springai.harness.auth.AuthenticationException.class)
+					.isInstanceOf(AuthenticationException.class)
 					.hasMessage("Authorization header format error");
 		}
 
@@ -659,7 +662,7 @@ class FileSystemToolsTest {
 		void shouldReturnFormattedSnapshotsList() throws IOException {
 			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
 			when(snapshotProvider.listSnapshots(any(), any())).thenReturn(List.of(
-					new io.github.springai.harness.snapshot.SnapshotInfo("snap1", "foo.txt", "EDIT", ".snapshots/snap1/foo.txt", 1000000L)
+					new SnapshotInfo("snap1", "foo.txt", "EDIT", ".snapshots/snap1/foo.txt", 1000000L)
 			));
 
 			String result = spyFileSystemTools.listSnapshots(context, "foo.txt");
