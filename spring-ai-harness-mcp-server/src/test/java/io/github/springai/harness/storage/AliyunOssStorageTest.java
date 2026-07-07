@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
 /**
  * Tests for {@link AliyunOssStorage}.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @DisplayName("AliyunOssStorage Tests")
 @ExtendWith(MockitoExtension.class)

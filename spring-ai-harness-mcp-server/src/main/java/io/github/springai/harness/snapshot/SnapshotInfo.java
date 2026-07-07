@@ -8,7 +8,7 @@ package io.github.springai.harness.snapshot;
  * @param action       action that triggered the snapshot (e.g. WRITE, EDIT, TRASH)
  * @param snapshotPath full storage path to the snapshot object
  * @param timestamp    creation timestamp in epoch millis
- * @author buyc
+ * @author ichaobuster
  */
 public record SnapshotInfo(
 		String snapshotId,

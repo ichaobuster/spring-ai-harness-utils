@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Default implementation of {@link SnapshotProvider}.
  * Captures pre-operation snapshots in .snapshots/{snapshotId}/ and supports rewind operations.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Slf4j
 public class DefaultSnapshotProvider implements SnapshotProvider {

@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * Aliyun OSS implementation of the StorageProvider.
  * Uses the Aliyun OSS SDK to manage memory files.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class AliyunOssStorage implements StorageProvider {
 

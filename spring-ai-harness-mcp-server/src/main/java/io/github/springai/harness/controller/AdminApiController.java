@@ -23,7 +23,7 @@ import java.util.Map;
  * REST Controller for administrator workspace management.
  * Base path: /api/v1/admin
  *
- * @author buyc
+ * @author ichaobuster
  */
 @RestController
 @RequestMapping("/api/v1/admin")

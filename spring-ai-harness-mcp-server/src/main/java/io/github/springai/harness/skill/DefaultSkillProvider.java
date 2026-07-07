@@ -14,7 +14,7 @@ import java.util.List;
  * Default implementation of SkillProvider.
  * Scans user workspace under skills/ directory for SKILL.md files.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Slf4j
 public class DefaultSkillProvider implements SkillProvider {

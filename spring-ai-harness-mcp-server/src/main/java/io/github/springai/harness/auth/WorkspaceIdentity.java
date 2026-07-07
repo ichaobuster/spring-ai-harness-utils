@@ -6,7 +6,7 @@ import org.springframework.util.StringUtils;
 /**
  * Workspace identity representing system, agent, and user.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public record WorkspaceIdentity(String system, String agent, String user) {
 

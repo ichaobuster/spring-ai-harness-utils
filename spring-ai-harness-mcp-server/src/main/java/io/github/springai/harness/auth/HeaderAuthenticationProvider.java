@@ -10,7 +10,7 @@ import java.util.Arrays;
  * Header-based AuthenticationProvider implementation.
  * Resolves system, agent, and user identity from the Authorization header.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class HeaderAuthenticationProvider implements AuthenticationProvider {
 

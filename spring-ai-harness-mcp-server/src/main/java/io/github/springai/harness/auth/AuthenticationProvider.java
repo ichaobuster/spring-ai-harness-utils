@@ -5,7 +5,7 @@ import org.springframework.web.servlet.function.ServerRequest;
 /**
  * Authentication provider interface to resolve WorkspaceIdentity from ServerRequest.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public interface AuthenticationProvider {
 

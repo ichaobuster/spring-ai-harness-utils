@@ -3,7 +3,7 @@ package io.github.springai.harness.auth;
 /**
  * Exception thrown when authentication or authorization header parsing fails.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class AuthenticationException extends RuntimeException {
 

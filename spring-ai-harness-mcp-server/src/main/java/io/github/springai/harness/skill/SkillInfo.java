@@ -8,7 +8,7 @@ import java.util.Map;
  * @param basePath relative base directory of the skill (e.g. "skills/my-skill")
  * @param frontMatter key-value metadata map extracted from YAML frontmatter
  * @param content markdown content after frontmatter
- * @author buyc
+ * @author ichaobuster
  */
 public record SkillInfo(String basePath, Map<String, Object> frontMatter, String content) {
 

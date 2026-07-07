@@ -11,7 +11,7 @@ import org.springframework.web.servlet.function.ServerRequest;
  * Default implementation of StorageProviderFactory using AuthenticationProvider to extract identity
  * and construct AliyunOssStorage.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class DefaultStorageProviderFactory implements StorageProviderFactory {
 

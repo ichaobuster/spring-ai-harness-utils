@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Parser for Markdown documents with optional YAML front matter.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class MarkdownParser {
 

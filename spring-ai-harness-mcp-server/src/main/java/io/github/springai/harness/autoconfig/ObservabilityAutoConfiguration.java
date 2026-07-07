@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
  * Auto-configuration for OpenTelemetry and Micrometer Tracing.
  * Configured with conditional property checks to remain completely pluggable.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Configuration
 @ConditionalOnProperty(prefix = "spring.ai.harness.mcp.server.observability", name = "enabled", havingValue = "true")

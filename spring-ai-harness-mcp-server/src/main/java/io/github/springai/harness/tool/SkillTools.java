@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * SkillTools exposes skill management capabilities via MCP Tools and MCP Resources.
  *
- * @author buyc
+ * @author ichaobuster
  */
 @Component
 @Slf4j

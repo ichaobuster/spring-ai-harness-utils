@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Decorator for {@link StorageProvider} that wraps all operations with Micrometer Observations.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class ObservedStorageProvider implements StorageProvider {
 

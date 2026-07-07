@@ -23,7 +23,7 @@ import java.util.Map;
  * REST Controller for user workspace file and snapshot management.
  * Base path: /api/v1/workspace
  *
- * @author buyc
+ * @author ichaobuster
  */
 @RestController
 @RequestMapping("/api/v1/workspace")

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * SnapshotProvider interface for creating, listing, and restoring file snapshots.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public interface SnapshotProvider {
 

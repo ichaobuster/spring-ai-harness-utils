@@ -5,7 +5,7 @@ import io.modelcontextprotocol.common.McpTransportContext;
 /**
  * StorageProviderFactory to construct storage provider based on transport context.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public interface StorageProviderFactory {
 

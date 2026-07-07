@@ -7,7 +7,7 @@ package io.github.springai.harness.dto;
  * @param isDirectory  whether the item is a directory
  * @param size         size in bytes
  * @param lastModified last modified timestamp in millis
- * @author buyc
+ * @author ichaobuster
  */
 public record FileItemDto(
 		String path,

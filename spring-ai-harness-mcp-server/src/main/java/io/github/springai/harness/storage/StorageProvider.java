@@ -9,7 +9,7 @@ import java.util.List;
  * Encapsulates all persistent storage operations (read, write, delete, list).
  * All paths are relative to the storage.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public interface StorageProvider {
 

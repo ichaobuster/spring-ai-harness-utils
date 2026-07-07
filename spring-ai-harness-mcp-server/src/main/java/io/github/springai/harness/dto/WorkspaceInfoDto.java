@@ -8,7 +8,7 @@ package io.github.springai.harness.dto;
  * @param agent       agent identifier
  * @param user        user identifier
  * @param prefix      full storage prefix path in OSS
- * @author buyc
+ * @author ichaobuster
  */
 public record WorkspaceInfoDto(
 		String workspaceId,

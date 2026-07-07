@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * SkillProvider interface for discovering and reading skills in workspace.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public interface SkillProvider {
 

@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Decorator for {@link SnapshotProvider} that wraps all operations with Micrometer Observations.
  *
- * @author buyc
+ * @author ichaobuster
  */
 public class ObservedSnapshotProvider implements SnapshotProvider {
 
