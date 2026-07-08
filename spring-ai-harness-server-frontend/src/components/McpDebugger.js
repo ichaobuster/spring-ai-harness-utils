@@ -27,6 +27,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined
 } from '@ant-design/icons';
+import { Client } from '@modelcontextprotocol/client';
 import { api } from '../services/api';
 
 const { Content } = Layout;
@@ -51,33 +52,87 @@ export const McpDebugger = () => {
   const [callTime, setCallTime] = useState(null);
   const [callStatus, setCallStatus] = useState(null); // 'success' | 'error' | null
 
-  // Setup mock ID counter for JSON-RPC requests using useRef (prevents race conditions)
-  const rpcIdRef = useRef(1);
+  // Reference to the active MCP Client instance
+  const clientRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const isInitializedRef = useRef(false);
-  const initPromiseRef = useRef(null);
 
-  const getNextRpcId = () => {
-    const currentId = rpcIdRef.current;
-    rpcIdRef.current += 1;
-    return currentId;
-  };
-
-  // Reset initialization state when authHeader changes
+  // Recreate and connect client when authHeader changes
   useEffect(() => {
     setIsInitialized(false);
-    isInitializedRef.current = false;
-    initPromiseRef.current = null;
+    clientRef.current = null;
+    
+    // Custom transport wrapping stateless HTTP POST API
+    const transport = {
+      onclose: null,
+      onerror: null,
+      onmessage: null,
+      start: async () => {},
+      send: async (messagePayload) => {
+        // Log request wire data
+        setRpcRequest(messagePayload);
+        setRpcResponse(null);
+        setCallStatus(null);
+        setCallTime(null);
+        
+        const startTime = Date.now();
+        try {
+          const responseData = await api.callMcp(authHeader, messagePayload);
+          setCallTime(Date.now() - startTime);
+          setRpcResponse(responseData);
+          
+          if (responseData.error) {
+            setCallStatus('error');
+          } else {
+            setCallStatus('success');
+          }
+          
+          if (transport.onmessage) {
+            transport.onmessage(responseData);
+          }
+        } catch (error) {
+          setCallTime(Date.now() - startTime);
+          setCallStatus('error');
+          const errResponse = error.response?.data || error.message;
+          setRpcResponse(errResponse);
+          if (transport.onerror) {
+            transport.onerror(error);
+          }
+          throw error;
+        }
+      },
+      close: async () => {}
+    };
 
-    const startFetch = async () => {
+    const client = new Client(
+      {
+        name: 'spring-ai-harness-console',
+        version: '1.0.0'
+      },
+      {
+        capabilities: {}
+      }
+    );
+
+    clientRef.current = client;
+
+    const connectAndFetch = async () => {
+      setLoadingTools(true);
+      setLoadingResources(true);
       try {
-        await fetchTools();
-        await fetchResources();
+        await client.connect(transport);
+        setIsInitialized(true);
+        await fetchTools(client);
+        await fetchResources(client);
       } catch (err) {
-        console.error('Error fetching tools/resources on startup:', err);
+        console.error('Failed to connect client or fetch lists:', err);
+        message.error(`Client connection failed: ${err.message}`);
+      } finally {
+        setLoadingTools(false);
+        setLoadingResources(false);
       }
     };
-    startFetch();
+
+    connectAndFetch();
   }, [authHeader]);
 
   // Sync tool arguments default when selected tool changes
@@ -94,122 +149,39 @@ export const McpDebugger = () => {
     }
   }, [selectedToolName, tools]);
 
-  const ensureInitialized = async () => {
-    if (isInitializedRef.current) return;
-    if (initPromiseRef.current) {
-      return initPromiseRef.current;
+  const fetchTools = async (clientInstance) => {
+    const client = clientInstance || clientRef.current;
+    if (!client) {
+      message.error('Client is not connected');
+      return;
     }
-
-    const doInitialize = async () => {
-      const initId = getNextRpcId();
-      const initPayload = {
-        jsonrpc: '2.0',
-        id: initId,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: {
-            name: 'spring-ai-harness-console',
-            version: '1.0.0'
-          }
-        }
-      };
-
-      setRpcRequest(initPayload);
-      setRpcResponse(null);
-      setCallStatus(null);
-      setCallTime(null);
-
-      const initData = await api.callMcp(authHeader, initPayload);
-      setRpcResponse(initData);
-
-      if (initData.error) {
-        setCallStatus('error');
-        throw new Error(`Initialization failed: ${initData.error.message}`);
-      }
-
-      // Send initialized notification (which is notifications/initialized)
-      const initializedPayload = {
-        jsonrpc: '2.0',
-        method: 'notifications/initialized'
-      };
-
-      setRpcRequest(initializedPayload);
-      await api.callMcp(authHeader, initializedPayload);
-
-      setIsInitialized(true);
-      isInitializedRef.current = true;
-      initPromiseRef.current = null;
-    };
-
-    initPromiseRef.current = doInitialize();
-    return initPromiseRef.current;
-  };
-
-  const fetchTools = async () => {
+    
     setLoadingTools(true);
-    const startTime = Date.now();
     try {
-      await ensureInitialized();
-
-      const id = getNextRpcId();
-      const payload = {
-        jsonrpc: '2.0',
-        id: id,
-        method: 'tools/list',
-        params: {}
-      };
-
-      setRpcRequest(payload);
-      setRpcResponse(null);
-      setCallStatus(null);
-      setCallTime(null);
-
-      const data = await api.callMcp(authHeader, payload);
-      setCallTime(Date.now() - startTime);
-      setRpcResponse(data);
-      if (data.error) {
-        setCallStatus('error');
-        message.error(`Server returned error: ${data.error.message}`);
+      const response = await client.listTools();
+      const toolsList = response.tools || [];
+      setTools(toolsList);
+      if (toolsList.length > 0) {
+        setSelectedToolName(toolsList[0].name);
       } else {
-        setCallStatus('success');
-        const toolsList = data.result?.tools || [];
-        setTools(toolsList);
-        if (toolsList.length > 0) {
-          setSelectedToolName(toolsList[0].name);
-        } else {
-          setSelectedToolName(null);
-        }
+        setSelectedToolName(null);
       }
     } catch (err) {
-      setCallTime(Date.now() - startTime);
-      setCallStatus('error');
-      const errResponse = err.response?.data || err.message;
-      setRpcResponse(errResponse);
-      message.error(`Failed to list tools: ${err.response?.data?.error?.message || err.message}`);
+      console.error('Failed to list tools:', err);
+      message.error(`Failed to list tools: ${err.message}`);
     } finally {
       setLoadingTools(false);
     }
   };
 
-  const fetchResources = async () => {
+  const fetchResources = async (clientInstance) => {
+    const client = clientInstance || clientRef.current;
+    if (!client) return;
+    
     setLoadingResources(true);
     try {
-      await ensureInitialized();
-
-      const id = getNextRpcId();
-      const payload = {
-        jsonrpc: '2.0',
-        id: id,
-        method: 'resources/list',
-        params: {}
-      };
-
-      const data = await api.callMcp(authHeader, payload);
-      if (!data.error) {
-        setResources(data.result?.resources || []);
-      }
+      const response = await client.listResources();
+      setResources(response.resources || []);
     } catch (err) {
       console.error('Failed to list resources:', err);
     } finally {
@@ -231,30 +203,20 @@ export const McpDebugger = () => {
       return;
     }
 
-    setLoadingCall(true);
-    const id = getNextRpcId();
+    const client = clientRef.current;
+    if (!client) {
+      message.error('Client is not connected');
+      return;
+    }
 
-    const payload = {
-      jsonrpc: '2.0',
-      id: id,
-      method: 'tools/call',
-      params: {
+    setLoadingCall(true);
+    try {
+      const result = await client.callTool({
         name: selectedToolName,
         arguments: parsedArgs
-      }
-    };
-
-    setRpcRequest(payload);
-    setRpcResponse(null);
-    setCallStatus(null);
-    setCallTime(null);
-
-    const startTime = Date.now();
-    try {
-      const data = await api.callMcp(authHeader, payload);
-      setCallTime(Date.now() - startTime);
-      setRpcResponse(data);
-      if (data.error || (data.result && data.result.isError)) {
+      });
+      
+      if (result.isError) {
         setCallStatus('error');
         message.error('Tool execution returned an error');
       } else {
@@ -262,50 +224,28 @@ export const McpDebugger = () => {
         message.success('Tool executed successfully');
       }
     } catch (err) {
-      setCallTime(Date.now() - startTime);
       setCallStatus('error');
-      const errResponse = err.response?.data || err.message;
-      setRpcResponse(errResponse);
-      message.error(`Tool execution failed: ${err.response?.data?.error?.message || err.message}`);
+      message.error(`Tool execution failed: ${err.message}`);
     } finally {
       setLoadingCall(false);
     }
   };
 
   const handleReadResource = async (uri) => {
+    const client = clientRef.current;
+    if (!client) {
+      message.error('Client is not connected');
+      return;
+    }
+
     setLoadingResources(true);
-    const id = getNextRpcId();
-
-    const payload = {
-      jsonrpc: '2.0',
-      id: id,
-      method: 'resources/read',
-      params: { uri }
-    };
-
-    setRpcRequest(payload);
-    setRpcResponse(null);
-    setCallStatus(null);
-    setCallTime(null);
-
-    const startTime = Date.now();
     try {
-      const data = await api.callMcp(authHeader, payload);
-      setCallTime(Date.now() - startTime);
-      setRpcResponse(data);
-      if (data.error) {
-        setCallStatus('error');
-        message.error(`Failed to read resource: ${data.error.message}`);
-      } else {
-        setCallStatus('success');
-        message.success('Resource read successfully');
-      }
+      await client.readResource({ uri });
+      setCallStatus('success');
+      message.success('Resource read successfully');
     } catch (err) {
-      setCallTime(Date.now() - startTime);
       setCallStatus('error');
-      const errResponse = err.response?.data || err.message;
-      setRpcResponse(errResponse);
-      message.error(`Failed to read resource: ${err.response?.data?.error?.message || err.message}`);
+      message.error(`Failed to read resource: ${err.message}`);
     } finally {
       setLoadingResources(false);
     }
