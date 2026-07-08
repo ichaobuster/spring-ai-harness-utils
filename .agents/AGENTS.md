@@ -10,7 +10,7 @@
 ## 根目录架构概述
 
 该项目由两大核心子模块构成：
-1. **`spring-ai-harness-mcp-server`**：基于 Spring Boot & Spring AI MCP 实现的无状态服务端，提供工作区安全路径过滤、Snapshot 快照创建与版本回退、可插拔 OTel 链路追踪观测。
+1. **`spring-ai-harness-mcp-server`**：基于 Spring Boot & Spring AI MCP 实现 of 无状态服务端，提供工作区安全路径过滤、Snapshot 快照创建与版本回退、可插拔 OTel 链路追踪观测。
 2. **`spring-ai-harness-server-frontend`**：基于 React 18 + Ant Design 5 + Vite 构建的管理后台 Web 控制台，包含 Windows 资源管理器风格的文件管理及 MCP Client 调试器。
 
 ### 统一设计原则与安全规范
@@ -61,6 +61,19 @@ spring.ai.harness.mcp.server.observability.enabled=false
 spring.ai.harness.mcp.server.observability.export-type=otlp
 ```
 
+### 1.3 后端编码与质量规范
+
+#### 编码风格约定
+- **日志规范**：严禁使用 `System.out.println` 等控制台直接输出，必须使用 SLF4J 接口（通过 Lombok `@Slf4j` 注解）记录结构化日志（`log.info`, `log.error`）。
+- **Java 17 特性**：数据传输对象（DTO）和只读元数据模型优先使用 Java 17 `record` 声明，确保不可变性。
+- **参数验证**：接口参数输入层需使用 Jakarta Bean Validation（如 `@NotNull`, `@Size`）进行字段边界约束。
+- **工具描述**：`@McpTool` 标注的方法描述（`description`）以及其参数注解中的说明必须为**英文**（便于大语言模型直接理解），而代码业务注释须使用**中文**。
+
+#### 单元测试与覆盖率红线
+- **全面覆盖**：每一个新建的业务逻辑或工具类必须编写对应的 JUnit 5 测试类。
+- **覆盖率红线**：核心逻辑类（如路径解析、权限校验等）的**行覆盖率（Line Coverage）**与**分支覆盖率（Branch Coverage）**必须达到 **80%** 以上。
+- **Mocking 策略**：所有涉及到 `AliyunOssStorage` 的测试必须通过 Mockito 进行全量 Mock（包括 `OSS` 客户端与网络请求），严禁连接物理阿里云 OSS 存储。
+
 ---
 
 ## 2. 前端模块 (spring-ai-harness-server-frontend)
@@ -82,7 +95,7 @@ spring-ai-harness-server-frontend/
 │   │   ├── FileExplorer.js      # Windows 资源管理器界面主组件
 │   │   ├── FileListTable.js     # 表格列表视图组件
 │   │   ├── FileGridCards.js     # 网格平铺卡片视图组件
-│   │   ├── McpDebugger.js       # 内置的 MCP 客户端 JSON-RPC 调试面板
+│   │   ├── McpDebugger.js       # 内置 of MCP 客户端 JSON-RPC 调试面板
 │   │   └── SnapshotDrawer.js    # 侧边栏快照列表及 Rewind 控制台
 │   ├── services/
 │   │   └── api.js               # 基于 Axios 的后端管理服务及 /mcp 发包器
@@ -93,6 +106,21 @@ spring-ai-harness-server-frontend/
 在本地开发（`npm run dev`）时，Vite 的 dev 代理会自动将符合以下规则的流量无感路由到 Spring Boot 后端：
 - `/api/**` -> `http://localhost:8080/api/**` (业务 REST API)
 - `/mcp` -> `http://localhost:8080/mcp` (Stateless JSON-RPC 端点)
+
+### 2.3 前端编码与设计规范
+
+#### UI & 组件准则
+- **Ant Design 优先**：禁止随意手写基础布局，优先选择并复用 Ant Design v5 的排版与布局组件（如 `Space`, `Flex`, `Row`, `Col`, `Table`, `Card`）。
+- **样式统一性**：不引入 TailwindCSS 或 heavy CSS-in-JS 库，完全基于 `styles/index.css` 的全局暗黑毛玻璃风格（Glassmorphism）和统一的自定义 Theme Token（避免硬编码 Hex 颜色）。
+- **图标使用**：一律使用 `@ant-design/icons`。引入时应进行单组件按需引入，以便打包器（Vite/Rollup）进行 tree-shaking 优化。
+
+#### 代码风格约定
+- **组件模式**：推荐 Functional Component + React Hooks 结构。复杂计算或子组件 Props 传递时，使用 `useMemo` 与 `useCallback` 避免多余的重渲染。
+- **命名规范**：
+  * 组件文件统一使用 `PascalCase`（例如 `FileListTable.js`）
+  * 自定义 Hook 统一使用首字母小写的 `camelCase`，并以 `use` 开头。
+  * 辅助函数或非组件文件使用 `kebab-case`。
+- **解构传参**：组件 Props 建议直接在函数签名处进行解构，提升代码可读性。
 
 ---
 
@@ -124,3 +152,11 @@ npm run dev
 # 编译打包
 npm run build
 ```
+
+---
+
+## 4. AI 助手开发建议与质量红线
+
+1. **安全第一（Surgical Edits）**：在修改已有组件或代码逻辑时，务必做“外科手术式”的小范围修改，尽可能不打乱已有的格式与缩进，避免引入任何跨 Workspace 逃逸的文件系统路径。
+2. **测试与开发并重**：任何新增加的方法或逻辑修复，完成后应第一时间执行全量单元测试（`./mvnw test`），确认未发生功能退化（Regression）。
+3. **配置文件警戒线**：严禁在 `pom.xml`、`package.json` 以及本地构建配置中擅自修改公共 Maven 或 npm 仓库的源地址。

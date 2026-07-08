@@ -11,7 +11,7 @@
 
 ### 为什么需要这个项目
 
-不同的 agents 使用不同的开发语言、SDK、plugin 和 hook，导致为解决 agent loop runtime 越权读写文件、执行高危命令等安全问题，需要在各个 agent 上分别开发多种 plugins。而所有这些 agents 都支持 MCP Server 协议，因此通过：
+不同的 agents 使用不同的开发语言、SDK、plugin 和 hook，导致为解决 agent loop runtime 越权读写文件、执行高危命令等安全问题，需要在各个 agent 上分别开发多种 plugins。而所有 these agents 都支持 MCP Server 协议，因此通过：
 
 1. **禁用** agents 内置的文件操作工具（read、write、edit、glob、grep 等）
 2. **替代** 为统一的 MCP Server 提供这些能力
@@ -93,7 +93,6 @@ oss://{bucket}/{ossPrefix}/{system}-{agent}-{user}/
 对于 agent 来说：
 - **pwd 是 `./`**，所有路径操作以此为基准
 - **绝对路径被禁止**：以 `/` 开头的路径会抛出 `SecurityException`
-- **`..` 路径逃逸**：TODO - 当前需加强对 `../` 的防护
 - Agent 无法感知自身在 OSS 中的真实位置
 
 ### 沙箱集成（规划中）
@@ -103,7 +102,7 @@ oss://{bucket}/{ossPrefix}/{system}-{agent}-{user}/
 2. 沙箱内的操作可访问 workspace 下的文件
 3. 沙箱按用户隔离容器
 
-### 文件防护能力（规划中）
+### 文件防护能力
 
 - 利用 OSS 版本控制能力实现文件操作回滚
 - 或自行编写 workspace 的备份/快照方案
@@ -328,7 +327,7 @@ private String getFullKey(String path) {
   - 配置 Stateless MCP Server 传输层，通过 `contextExtractor` 将 `ServerRequest` 注入 `McpTransportContext`
   - 自动装配 `@ConditionalOnMissingBean` 的 `AuthenticationProvider`（默认 `HeaderAuthenticationProvider`）
   - 自动装配 `@ConditionalOnMissingBean` 的 `StorageProviderFactory`（默认 `DefaultStorageProviderFactory`）
-- **`ObservabilityAutoConfiguration`**：基于 `spring.ai.harness.mcp.server.observability.enabled=true` 条件加载，自动装配并向容器注册 OpenTelemetry `Sampler`、`Resource` 和 `SpanExporter` (包括 Stdout 控制台及 Grpc OTLP 导出实现)。
+- **`ObservabilityAutoConfiguration`**：基于 `spring.ai.harness.mcp.server.observability.enabled=true` 条件加载，自动装配并向容器注册 OpenTelemetry `Sampler`、`Resource` 和 `SpanExporter` (支持 otlp 导出，none 回退)。
 
 ### 5. Observability Module (可观测性模块)
 
@@ -407,14 +406,17 @@ spring.ai.harness.mcp.server.observability.probability=1.0
 
 ### 编码约定
 
-- 使用中文注释，英文代码
-- `@McpTool` 的 `description` 使用英文，因为这是提供给 LLM 阅读的 prompt
-- 使用 Lombok 减少样板代码
-- 配置属性类使用 `@ConfigurationProperties`
-- 自动配置类使用 `@ConditionalOnMissingBean` 保证可扩展性
-- 遵循 Spring 的 `// @formatter:off` / `// @formatter:on` 注释控制格式化
-- **禁止在代码中硬编码类的全限定名（FQCN）**：代码中应通过 `import` 显式引入类，避免在方法签名、变量类型声明或 `new` 实例化时直接使用完整的 `packageName.ClassName`
-- **常量值修改需同步 prompt**：`StorageProvider` 中标注了「如有变动，需同步修改 prompt」的常量（如 `MAX_LINES`、`MAX_LINE_LENGTH`）与 `@McpTool` 的 description 文本耦合，修改时务必两侧同步
+- 使用中文注释，英文代码。
+- `@McpTool` 的 `description` 使用英文，因为这是提供给 LLM 阅读的 prompt；代码内部的逻辑注释须使用中文。
+- 使用 Lombok 减少样板代码，主要使用 `@Data`、`@Getter/@Setter`、`@Slf4j`。
+- **日志规范**：严禁在代码中直接调用 `System.out.println` 输出日志。必须使用 SLF4J 门面接口记录结构化日志（如 `log.info()`, `log.error()`）。
+- **Java 17 特性**：数据传输对象（DTO）和只读元数据模型优先使用 Java 17 的 `record` 关键字进行声明，以保证数据模型的不可变性与简洁性。
+- **参数验证**：控制层或接收参数的 DTO / Record 须使用 Jakarta Bean Validation 注解（如 `@NotNull`, `@NotBlank`, `@Size` 等）进行入参硬性边界校验。
+- 配置属性类使用 `@ConfigurationProperties`。
+- 自动配置类使用 `@ConditionalOnMissingBean` 保证可扩展性。
+- 遵循 Spring 的 `// @formatter:off` / `// @formatter:on` 注释控制格式化。
+- **禁止在代码中硬编码类的全限定名（FQCN）**：代码中应通过 `import` 显式引入类，避免在方法签名、变量类型声明或 `new` 实例化时直接使用完整的 `packageName.ClassName`。
+- **常量值修改需同步 prompt**：`StorageProvider` 中标注了「如有变动，需同步修改 prompt」的常量（如 `MAX_LINES`、`MAX_LINE_LENGTH`）与 `@McpTool` 的 description 文本耦合，修改时务必两侧同步。
 
 ### 分层职责
 
@@ -459,11 +461,12 @@ spring.ai.harness.mcp.server.observability.probability=1.0
 ./mvnw test
 ```
 
-### 测试约定
+### 测试约定与质量红线
 
-- 使用 **JUnit 5** + **Mockito** + **AssertJ**
-- OSS 客户端必须 mock，不得在单元测试中连接真实 OSS
-- 安全相关测试用例（路径逃逸、绝对路径拒绝等）必须覆盖
+- 使用 **JUnit 5** + **Mockito** + **AssertJ** 进行测试。
+- **Mocking 策略**：所有涉及到 `AliyunOssStorage` 的测试必须通过 Mockito 进行全量 Mock（包括 `OSS` 客户端与底层网络请求），绝对禁止在单元测试中连接真实的物理 OSS 服务。
+- **覆盖率红线**：核心逻辑类（如路径解析、权限校验等）的**行覆盖率（Line Coverage）**与**分支覆盖率（Branch Coverage）**必须达到 **80%** 以上。
+- 安全相关测试用例（路径逃逸、绝对路径拒绝等）必须实现全量覆盖。
 - 测试类命名：`{被测类名}Test.java`
 
 ---
