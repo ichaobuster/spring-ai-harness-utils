@@ -234,22 +234,23 @@ export const FileExplorer = () => {
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#0b0f19' }}>
+    <Layout style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
       {/* Top Header */}
       <Header
         style={{
-          background: 'rgba(15, 23, 42, 0.9)',
+          background: 'var(--bg-header-bar)',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          borderBottom: '1px solid var(--border-color)',
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          lineHeight: 'normal'
         }}
       >
-        <Space size="middle">
+        <Space size="middle" align="center">
           <FolderOutlined style={{ fontSize: 24, color: '#38bdf8' }} />
-          <span style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
             Spring AI Harness OSS File Manager
           </span>
           <Tag color={isAdminMode ? 'purple' : 'cyan'}>
@@ -257,7 +258,7 @@ export const FileExplorer = () => {
           </Tag>
         </Space>
 
-        <Space size="large">
+        <Space size="large" align="center">
           {/* Mode Switcher */}
           <Radio.Group
             value={isAdminMode}
@@ -280,7 +281,7 @@ export const FileExplorer = () => {
               style={{ width: 280 }}
             />
           ) : (
-            <Space>
+            <Space align="center">
               <Input
                 addonBefore="Admin Token"
                 type="password"

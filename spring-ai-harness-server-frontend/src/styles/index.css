@@ -1,5 +1,6 @@
 /* Modern Glassmorphism & Windows Explorer Theme */
 :root {
+  /* Dark mode variables */
   --bg-primary: #0b0f19;
   --bg-secondary: #111827;
   --bg-card: rgba(30, 41, 59, 0.7);
@@ -8,6 +9,40 @@
   --accent-hover: #60a5fa;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
+
+  --bg-header-bar: rgba(15, 23, 42, 0.9);
+  --bg-navbar: rgba(15, 23, 42, 0.95);
+  --text-navbar: #f8fafc;
+  --bg-header: rgba(15, 23, 42, 0.6);
+  --bg-modal: #1e293b;
+  --bg-code: #0f172a;
+  --text-code: #38bdf8;
+  --shadow-color: rgba(0, 0, 0, 0.37);
+  --explorer-toolbar-bg: rgba(15, 23, 42, 0.85);
+  --bg-hover-subtle: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='light'] {
+  /* Light mode variables */
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #f9fafb;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --accent-color: #3b82f6;
+  --accent-hover: #2563eb;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+
+  --bg-header-bar: rgba(255, 255, 255, 0.9);
+  --bg-navbar: rgba(255, 255, 255, 0.95);
+  --text-navbar: #1f2937;
+  --bg-header: rgba(243, 244, 246, 0.8);
+  --bg-modal: #ffffff;
+  --bg-code: #f3f4f6;
+  --text-code: #0284c7;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --explorer-toolbar-bg: rgba(243, 244, 246, 0.9);
+  --bg-hover-subtle: rgba(0, 0, 0, 0.04);
 }
 
 body {
@@ -26,7 +61,7 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow: 0 8px 32px 0 var(--shadow-color);
 }
 
 /* Windows Explorer Header & Toolbar */
@@ -35,7 +70,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--explorer-toolbar-bg);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -56,7 +91,7 @@ body {
 }
 
 .explorer-breadcrumb-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover-subtle);
   color: var(--accent-hover);
 }
 
@@ -100,7 +135,7 @@ body {
 }
 
 .ant-table-thead > tr > th {
-  background: rgba(15, 23, 42, 0.6) !important;
+  background: var(--bg-header) !important;
   color: var(--text-secondary) !important;
   border-bottom: 1px solid var(--border-color) !important;
 }
@@ -115,13 +150,13 @@ body {
 }
 
 .ant-modal-content, .ant-drawer-content {
-  background-color: #1e293b !important;
+  background-color: var(--bg-modal) !important;
   color: var(--text-primary) !important;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color) !important;
 }
 
 .ant-modal-header, .ant-drawer-header {
-  background-color: #1e293b !important;
+  background-color: var(--bg-modal) !important;
   border-bottom: 1px solid var(--border-color) !important;
 }
 
@@ -133,8 +168,8 @@ body {
   font-family: 'JetBrains Mono', monospace !important;
   font-size: 13px !important;
   line-height: 1.6 !important;
-  background-color: #0f172a !important;
-  color: #38bdf8 !important;
+  background-color: var(--bg-code) !important;
+  color: var(--text-code) !important;
   border-color: var(--border-color) !important;
 }
 
@@ -147,6 +182,5 @@ body {
 }
 .dark-table .ant-table-cell {
   background: transparent !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-bottom: 1px solid var(--border-color) !important;
 }
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout,
   Card,
@@ -51,13 +51,31 @@ export const McpDebugger = () => {
   const [callTime, setCallTime] = useState(null);
   const [callStatus, setCallStatus] = useState(null); // 'success' | 'error' | null
 
-  // Setup mock ID counter for JSON-RPC requests
-  const [rpcId, setRpcId] = useState(1);
+  // Setup mock ID counter for JSON-RPC requests using useRef (prevents race conditions)
+  const rpcIdRef = useRef(1);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const initPromiseRef = useRef(null);
 
-  // Auto-fetch tools on mount / authHeader change
+  const getNextRpcId = () => {
+    const currentId = rpcIdRef.current;
+    rpcIdRef.current += 1;
+    return currentId;
+  };
+
+  // Reset initialization state when authHeader changes
   useEffect(() => {
-    fetchTools();
-    fetchResources();
+    setIsInitialized(false);
+    initPromiseRef.current = null;
+
+    const startFetch = async () => {
+      try {
+        await fetchTools();
+        await fetchResources();
+      } catch (err) {
+        console.error('Error fetching tools/resources on startup:', err);
+      }
+    };
+    startFetch();
   }, [authHeader]);
 
   // Sync tool arguments default when selected tool changes
@@ -74,25 +92,77 @@ export const McpDebugger = () => {
     }
   }, [selectedToolName, tools]);
 
-  const fetchTools = async () => {
-    setLoadingTools(true);
-    const id = rpcId;
-    setRpcId(prev => prev + 1);
-    
-    const payload = {
-      jsonrpc: '2.0',
-      id: id,
-      method: 'tools/list',
-      params: {}
+  const ensureInitialized = async () => {
+    if (isInitialized) return;
+    if (initPromiseRef.current) {
+      return initPromiseRef.current;
+    }
+
+    const doInitialize = async () => {
+      const initId = getNextRpcId();
+      const initPayload = {
+        jsonrpc: '2.0',
+        id: initId,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: {
+            name: 'spring-ai-harness-console',
+            version: '1.0.0'
+          }
+        }
+      };
+
+      setRpcRequest(initPayload);
+      setRpcResponse(null);
+      setCallStatus(null);
+      setCallTime(null);
+
+      const initData = await api.callMcp(authHeader, initPayload);
+      setRpcResponse(initData);
+
+      if (initData.error) {
+        setCallStatus('error');
+        throw new Error(`Initialization failed: ${initData.error.message}`);
+      }
+
+      // Send initialized notification (which is notifications/initialized)
+      const initializedPayload = {
+        jsonrpc: '2.0',
+        method: 'notifications/initialized'
+      };
+
+      setRpcRequest(initializedPayload);
+      await api.callMcp(authHeader, initializedPayload);
+
+      setIsInitialized(true);
+      initPromiseRef.current = null;
     };
 
-    setRpcRequest(payload);
-    setRpcResponse(null);
-    setCallStatus(null);
-    setCallTime(null);
+    initPromiseRef.current = doInitialize();
+    return initPromiseRef.current;
+  };
 
+  const fetchTools = async () => {
+    setLoadingTools(true);
     const startTime = Date.now();
     try {
+      await ensureInitialized();
+
+      const id = getNextRpcId();
+      const payload = {
+        jsonrpc: '2.0',
+        id: id,
+        method: 'tools/list',
+        params: {}
+      };
+
+      setRpcRequest(payload);
+      setRpcResponse(null);
+      setCallStatus(null);
+      setCallTime(null);
+
       const data = await api.callMcp(authHeader, payload);
       setCallTime(Date.now() - startTime);
       setRpcResponse(data);
@@ -122,17 +192,17 @@ export const McpDebugger = () => {
 
   const fetchResources = async () => {
     setLoadingResources(true);
-    const id = rpcId;
-    setRpcId(prev => prev + 1);
-
-    const payload = {
-      jsonrpc: '2.0',
-      id: id,
-      method: 'resources/list',
-      params: {}
-    };
-
     try {
+      await ensureInitialized();
+
+      const id = getNextRpcId();
+      const payload = {
+        jsonrpc: '2.0',
+        id: id,
+        method: 'resources/list',
+        params: {}
+      };
+
       const data = await api.callMcp(authHeader, payload);
       if (!data.error) {
         setResources(data.result?.resources || []);
@@ -159,8 +229,7 @@ export const McpDebugger = () => {
     }
 
     setLoadingCall(true);
-    const id = rpcId;
-    setRpcId(prev => prev + 1);
+    const id = getNextRpcId();
 
     const payload = {
       jsonrpc: '2.0',
@@ -202,8 +271,7 @@ export const McpDebugger = () => {
 
   const handleReadResource = async (uri) => {
     setLoadingResources(true);
-    const id = rpcId;
-    setRpcId(prev => prev + 1);
+    const id = getNextRpcId();
 
     const payload = {
       jsonrpc: '2.0',
@@ -264,19 +332,19 @@ export const McpDebugger = () => {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <Text style={{ color: '#f8fafc', fontWeight: 600 }}>{text}</Text>
+      render: (text) => <Text style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{text}</Text>
     },
     {
       title: 'URI',
       dataIndex: 'uri',
       key: 'uri',
-      render: (text) => <Text style={{ color: '#38bdf8', fontSize: '12px' }}>{text}</Text>
+      render: (text) => <Text style={{ color: 'var(--text-code)', fontSize: '12px' }}>{text}</Text>
     },
     {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
-      render: (text) => <Text style={{ color: '#94a3b8' }}>{text || '-'}</Text>
+      render: (text) => <Text style={{ color: 'var(--text-secondary)' }}>{text || '-'}</Text>
     },
     {
       title: 'Action',
@@ -305,7 +373,7 @@ export const McpDebugger = () => {
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ color: '#f8fafc', fontSize: '15px', fontWeight: 600 }}>Select MCP Tool</Text>
+              <Text style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>Select MCP Tool</Text>
               <Button
                 type="link"
                 icon={<CloudSyncOutlined />}
@@ -332,27 +400,27 @@ export const McpDebugger = () => {
               <Card
                 size="small"
                 style={{
-                  background: 'rgba(30, 41, 59, 0.4)',
-                  borderColor: 'rgba(255, 255, 255, 0.05)',
+                  background: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-color)',
                   marginBottom: 16
                 }}
               >
                 <div style={{ marginBottom: 8 }}>
                   <Text type="secondary">Description: </Text>
-                  <Text style={{ color: '#f8fafc' }}>{selectedTool.description}</Text>
+                  <Text style={{ color: 'var(--text-primary)' }}>{selectedTool.description}</Text>
                 </div>
                 <div>
                   <Text type="secondary">Input Properties: </Text>
                   <ul>
                     {Object.entries(selectedTool.inputSchema?.properties || {}).map(([key, val]) => (
                       <li key={key}>
-                        <Text style={{ color: '#e2e8f0', fontWeight: 600 }}>{key}</Text> 
-                        <Text style={{ color: '#38bdf8', fontSize: '12px' }}> ({val.type})</Text>
+                        <Text style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{key}</Text> 
+                        <Text style={{ color: 'var(--text-code)', fontSize: '12px' }}> ({val.type})</Text>
                         {selectedTool.inputSchema?.required?.includes(key) && (
                           <Tag color="error" style={{ marginLeft: 6, transform: 'scale(0.85)' }}>Required</Tag>
                         )}
                         {val.description && (
-                          <div style={{ color: '#94a3b8', fontSize: '12px' }}>{val.description}</div>
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{val.description}</div>
                         )}
                       </li>
                     ))}
@@ -364,7 +432,7 @@ export const McpDebugger = () => {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ color: '#f8fafc', fontSize: '15px', fontWeight: 600 }}>Arguments (JSON-RPC params)</Text>
+              <Text style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>Arguments (JSON-RPC params)</Text>
               <Space>
                 <Button size="small" icon={<ClearOutlined />} onClick={() => setToolArgsString('{}')}>Clear</Button>
                 <Button size="small" type="dashed" onClick={handleFormatJson}>Format JSON</Button>
@@ -378,9 +446,9 @@ export const McpDebugger = () => {
               placeholder='e.g. {"path": "docs/README.md"}'
               style={{
                 fontFamily: 'monospace',
-                background: '#0f172a',
-                color: '#38bdf8',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-code)',
+                color: 'var(--text-code)',
+                borderColor: 'var(--border-color)',
                 borderRadius: 6
               }}
             />
@@ -409,7 +477,7 @@ export const McpDebugger = () => {
       children: (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: '#f8fafc', fontSize: '15px', fontWeight: 600 }}>Exposed Resources</Text>
+            <Text style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600 }}>Exposed Resources</Text>
             <Button
               type="link"
               icon={<CloudSyncOutlined />}
@@ -436,23 +504,23 @@ export const McpDebugger = () => {
   ];
 
   return (
-    <Layout style={{ minHeight: 'calc(100vh - 64px)', background: '#0b0f19' }}>
+    <Layout style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--bg-primary)' }}>
       <Content style={{ padding: 24 }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           
           {/* Top Authentication Card */}
           <Card
             className="glass-container"
-            style={{ marginBottom: 20, borderColor: 'rgba(255, 255, 255, 0.08)' }}
+            style={{ marginBottom: 20, borderColor: 'var(--border-color)' }}
           >
             <Space size="large" wrap>
               <Space>
                 <BugOutlined style={{ fontSize: 24, color: '#3b82f6' }} />
-                <Title level={4} style={{ margin: 0, color: '#f8fafc' }}>
+                <Title level={4} style={{ margin: 0, color: 'var(--text-primary)' }}>
                   MCP Client Debugger
                 </Title>
               </Space>
-              <Divider type="vertical" style={{ background: 'rgba(255,255,255,0.1)', height: 24 }} />
+              <Divider type="vertical" style={{ background: 'var(--border-color)', height: 24 }} />
               <Input
                 addonBefore="Workspace Authorization"
                 value={authHeader}
@@ -472,7 +540,7 @@ export const McpDebugger = () => {
             {/* Left Card: Controllers & Interactive Inputs */}
             <Card
               className="glass-container"
-              style={{ minHeight: 650, borderColor: 'rgba(255, 255, 255, 0.08)' }}
+              style={{ minHeight: 650, borderColor: 'var(--border-color)' }}
             >
               <Tabs items={tabItems} defaultActiveKey="tools" />
             </Card>
@@ -482,7 +550,7 @@ export const McpDebugger = () => {
               className="glass-container"
               title={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <span style={{ color: '#f8fafc', fontWeight: 600 }}>JSON-RPC Wire Inspector</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>JSON-RPC Wire Inspector</span>
                   <Space>
                     {callStatus === 'success' && (
                       <Badge status="success" text={<Text style={{ color: '#4ade80' }}>Success ({callTime}ms)</Text>} />
@@ -493,19 +561,19 @@ export const McpDebugger = () => {
                   </Space>
                 </div>
               }
-              style={{ minHeight: 650, borderColor: 'rgba(255, 255, 255, 0.08)' }}
+              style={{ minHeight: 650, borderColor: 'var(--border-color)' }}
             >
               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ color: '#f8fafc', fontWeight: 500 }}>Sent Request Payload</Text>
+                    <Text style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Sent Request Payload</Text>
                     <Button
                       size="small"
                       type="text"
                       icon={<CopyOutlined />}
                       disabled={!rpcRequest}
                       onClick={() => copyToClipboard(rpcRequest)}
-                      style={{ color: '#94a3b8' }}
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       Copy
                     </Button>
@@ -513,9 +581,9 @@ export const McpDebugger = () => {
                   <pre
                     style={{
                       padding: 12,
-                      background: '#090d16',
-                      color: '#475569',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      background: 'var(--bg-code)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 6,
                       maxHeight: 220,
                       overflowY: 'auto',
@@ -526,21 +594,21 @@ export const McpDebugger = () => {
                     {rpcRequest ? (
                       <code style={{ color: '#10b981' }}>{JSON.stringify(rpcRequest, null, 2)}</code>
                     ) : (
-                      <span style={{ color: '#475569', fontStyle: 'italic' }}>No request sent yet. Sync tools or make a tool call.</span>
+                      <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No request sent yet. Sync tools or make a tool call.</span>
                     )}
                   </pre>
                 </div>
 
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ color: '#f8fafc', fontWeight: 500 }}>Received Response Payload</Text>
+                    <Text style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Received Response Payload</Text>
                     <Button
                       size="small"
                       type="text"
                       icon={<CopyOutlined />}
                       disabled={!rpcResponse}
                       onClick={() => copyToClipboard(rpcResponse)}
-                      style={{ color: '#94a3b8' }}
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       Copy
                     </Button>
@@ -548,9 +616,9 @@ export const McpDebugger = () => {
                   <pre
                     style={{
                       padding: 12,
-                      background: '#090d16',
-                      color: '#475569',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      background: 'var(--bg-code)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 6,
                       maxHeight: 320,
                       overflowY: 'auto',
@@ -563,14 +631,14 @@ export const McpDebugger = () => {
                         {JSON.stringify(rpcResponse, null, 2)}
                       </code>
                     ) : (
-                      <span style={{ color: '#475569', fontStyle: 'italic' }}>Waiting for response...</span>
+                      <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Waiting for response...</span>
                     )}
                   </pre>
                 </div>
 
                 {rpcResponse && rpcResponse.result && rpcResponse.result.content && (
                   <div>
-                    <Text style={{ color: '#f8fafc', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                    <Text style={{ color: 'var(--text-primary)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
                       Execution Result Output (Text)
                     </Text>
                     <Alert
@@ -582,7 +650,7 @@ export const McpDebugger = () => {
                       type={callStatus === 'error' ? 'error' : 'info'}
                       showIcon
                       icon={callStatus === 'error' ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
-                      style={{ background: 'rgba(15, 23, 42, 0.5)', border: 'none' }}
+                      style={{ background: 'var(--bg-secondary)', border: 'none' }}
                     />
                   </div>
                 )}
