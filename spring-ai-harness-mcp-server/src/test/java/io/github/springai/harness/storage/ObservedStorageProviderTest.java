@@ -251,4 +251,40 @@ class ObservedStorageProviderTest {
 		);
 		assertThat(startedObservations).contains("mcp.storage.delete");
 	}
+
+	@Test
+	@DisplayName("Should trace readImage and delegate")
+	void shouldTraceReadImage() throws IOException {
+		when(delegate.readImage("img.png")).thenReturn("base64data");
+
+		String result = observedStorageProvider.readImage("img.png");
+
+		assertThat(result).isEqualTo("base64data");
+		assertThat(startedObservations).contains("mcp.storage.readImage");
+		verify(delegate).readImage("img.png");
+	}
+
+	@Test
+	@DisplayName("Should trace readPdf and delegate")
+	void shouldTraceReadPdf() throws IOException {
+		when(delegate.readPdf("doc.pdf", 1, 2)).thenReturn("pdf content");
+
+		String result = observedStorageProvider.readPdf("doc.pdf", 1, 2);
+
+		assertThat(result).isEqualTo("pdf content");
+		assertThat(startedObservations).contains("mcp.storage.readPdf");
+		verify(delegate).readPdf("doc.pdf", 1, 2);
+	}
+
+	@Test
+	@DisplayName("Should trace readDocument and delegate")
+	void shouldTraceReadDocument() throws IOException {
+		when(delegate.readDocument("doc.docx")).thenReturn("doc content");
+
+		String result = observedStorageProvider.readDocument("doc.docx");
+
+		assertThat(result).isEqualTo("doc content");
+		assertThat(startedObservations).contains("mcp.storage.readDocument");
+		verify(delegate).readDocument("doc.docx");
+	}
 }

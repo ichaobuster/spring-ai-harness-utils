@@ -181,4 +181,19 @@ public class ObservedStorageProvider implements StorageProvider {
 	public Info getInfo(String path) throws IOException {
 		return observe("getInfo", path, () -> delegate.getInfo(path));
 	}
+
+	@Override
+	public String readImage(String path) throws IOException {
+		return observe("readImage", path, () -> delegate.readImage(path));
+	}
+
+	@Override
+	public String readPdf(String path, Integer startPage, Integer endPage) throws IOException {
+		return observe("readPdf", path, () -> delegate.readPdf(path, startPage, endPage));
+	}
+
+	@Override
+	public String readDocument(String path) throws IOException {
+		return observe("readDocument", path, () -> delegate.readDocument(path));
+	}
 }

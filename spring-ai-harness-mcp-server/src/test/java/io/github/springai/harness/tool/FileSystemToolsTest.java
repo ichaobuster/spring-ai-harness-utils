@@ -10,6 +10,7 @@ import io.github.springai.harness.storage.AliyunOssStorage;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProvider;
 import io.modelcontextprotocol.common.McpTransportContext;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.function.ServerRequest;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -155,14 +157,19 @@ class FileSystemToolsTest {
 			doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
 		}
 
+		private String getReadText(McpSchema.CallToolResult result) {
+			return ((McpSchema.TextContent) result.content().get(0)).text();
+		}
+
 		@Test
 		@DisplayName("Should return error when file does not exist")
 		void shouldReturnErrorWhenFileDoesNotExist() throws IOException {
 			when(storageProvider.exists("test.txt")).thenReturn(false);
 
-			String result = spyFileSystemTools.read(context, "test.txt", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "test.txt", null, null, null, null);
 
-			assertThat(result).isEqualTo("Error: File does not exist: test.txt");
+			assertThat(result.isError()).isTrue();
+			assertThat(getReadText(result)).isEqualTo("Error: File does not exist: test.txt");
 		}
 
 		@Test
@@ -171,9 +178,10 @@ class FileSystemToolsTest {
 			when(storageProvider.exists("docs")).thenReturn(true);
 			when(storageProvider.isDirectory("docs")).thenReturn(true);
 
-			String result = spyFileSystemTools.read(context, "docs", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "docs", null, null, null, null);
 
-			assertThat(result).isEqualTo("Error: Path is a directory, not a file: docs");
+			assertThat(result.isError()).isTrue();
+			assertThat(getReadText(result)).isEqualTo("Error: Path is a directory, not a file: docs");
 		}
 
 		@Test
@@ -183,9 +191,10 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("empty.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("empty.txt")).thenReturn(Collections.emptyList());
 
-			String result = spyFileSystemTools.read(context, "empty.txt", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "empty.txt", null, null, null, null);
 
-			assertThat(result).isEqualTo("File is empty: empty.txt");
+			assertThat(result.isError()).isFalse();
+			assertThat(getReadText(result)).isEqualTo("File is empty: empty.txt");
 		}
 
 		@Test
@@ -195,9 +204,10 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("file.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("file.txt")).thenReturn(List.of("line1", "line2"));
 
-			String result = spyFileSystemTools.read(context, "file.txt", 5, 10);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "file.txt", 5, 10, null, null);
 
-			assertThat(result).isEqualTo("No lines to read. File has 2 lines, but offset was 5");
+			assertThat(result.isError()).isTrue();
+			assertThat(getReadText(result)).isEqualTo("No lines to read. File has 2 lines, but offset was 5");
 		}
 
 		@Test
@@ -207,12 +217,13 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("file.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("file.txt")).thenReturn(List.of("first line", "second line"));
 
-			String result = spyFileSystemTools.read(context, "file.txt", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "file.txt", null, null, null, null);
+			String text = getReadText(result);
 
-			assertThat(result).contains("File: file.txt");
-			assertThat(result).contains("Showing lines 1-2 of 2");
-			assertThat(result).contains("     1\tfirst line");
-			assertThat(result).contains("     2\tsecond line");
+			assertThat(text).contains("File: file.txt");
+			assertThat(text).contains("Showing lines 1-2 of 2");
+			assertThat(text).contains("     1\tfirst line");
+			assertThat(text).contains("     2\tsecond line");
 		}
 
 		@Test
@@ -222,13 +233,14 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("file.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("file.txt")).thenReturn(List.of("line 1", "line 2", "line 3", "line 4"));
 
-			String result = spyFileSystemTools.read(context, "file.txt", 2, 2);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "file.txt", 2, 2, null, null);
+			String text = getReadText(result);
 
-			assertThat(result).contains("Showing lines 2-3 of 4");
-			assertThat(result).contains("     2\tline 2");
-			assertThat(result).contains("     3\tline 3");
-			assertThat(result).doesNotContain("line 1");
-			assertThat(result).doesNotContain("line 4");
+			assertThat(text).contains("Showing lines 2-3 of 4");
+			assertThat(text).contains("     2\tline 2");
+			assertThat(text).contains("     3\tline 3");
+			assertThat(text).doesNotContain("line 1");
+			assertThat(text).doesNotContain("line 4");
 		}
 
 		@Test
@@ -239,10 +251,11 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("long.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("long.txt")).thenReturn(List.of(longLine));
 
-			String result = spyFileSystemTools.read(context, "long.txt", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "long.txt", null, null, null, null);
+			String text = getReadText(result);
 
-			assertThat(result).contains("... (line truncated)");
-			assertThat(result).contains("a".repeat(2000));
+			assertThat(text).contains("... (line truncated)");
+			assertThat(text).contains("a".repeat(2000));
 		}
 
 		@Test
@@ -252,9 +265,56 @@ class FileSystemToolsTest {
 			when(storageProvider.isDirectory("err.txt")).thenReturn(false);
 			when(storageProvider.readAllLines("err.txt")).thenThrow(new IOException("Read failure"));
 
-			String result = spyFileSystemTools.read(context, "err.txt", null, null);
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "err.txt", null, null, null, null);
 
-			assertThat(result).isEqualTo("Error reading file: Read failure");
+			assertThat(result.isError()).isTrue();
+			assertThat(getReadText(result)).isEqualTo("Error reading file: Read failure");
+		}
+
+		@Test
+		@DisplayName("Should read PDF successfully and return text")
+		void shouldReadPdfSuccessfully() throws IOException {
+			when(storageProvider.exists("doc.pdf")).thenReturn(true);
+			when(storageProvider.isDirectory("doc.pdf")).thenReturn(false);
+			when(storageProvider.readPdf("doc.pdf", 1, 2)).thenReturn("pdf page content");
+
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "doc.pdf", null, null, 1, 2);
+
+			assertThat(result.isError()).isFalse();
+			assertThat(getReadText(result)).isEqualTo("pdf page content");
+			verify(storageProvider).readPdf("doc.pdf", 1, 2);
+		}
+
+		@Test
+		@DisplayName("Should read Image successfully and return base64 ImageContent")
+		void shouldReadImageSuccessfully() throws IOException {
+			when(storageProvider.exists("image.png")).thenReturn(true);
+			when(storageProvider.isDirectory("image.png")).thenReturn(false);
+			when(storageProvider.readImage("image.png")).thenReturn("AQID");
+
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "image.png", null, null, null, null);
+
+			assertThat(result.isError()).isFalse();
+			assertThat(result.content()).hasSize(1);
+			assertThat(result.content().get(0)).isInstanceOf(McpSchema.ImageContent.class);
+			McpSchema.ImageContent img = (McpSchema.ImageContent) result.content().get(0);
+			assertThat(img.mimeType()).isEqualTo("image/png");
+			assertThat(img.data()).isEqualTo("AQID");
+			verify(storageProvider).readImage("image.png");
+		}
+
+		@Test
+		@DisplayName("Should read Office document successfully and return text")
+		void shouldReadOfficeDocumentSuccessfully() throws IOException {
+			when(storageProvider.exists("doc.docx")).thenReturn(true);
+			when(storageProvider.isDirectory("doc.docx")).thenReturn(false);
+			when(storageProvider.readDocument("doc.docx")).thenReturn("word content");
+
+			McpSchema.CallToolResult result = spyFileSystemTools.read(context, "doc.docx", null, null, null, null);
+
+			assertThat(result.isError()).isFalse();
+			assertThat(getReadText(result)).isEqualTo("word content");
+			verify(storageProvider).readDocument("doc.docx");
 		}
 	}
 

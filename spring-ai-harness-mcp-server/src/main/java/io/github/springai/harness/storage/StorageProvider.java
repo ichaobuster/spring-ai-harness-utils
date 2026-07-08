@@ -32,6 +32,11 @@ public interface StorageProvider {
 	 */
 	Integer DEFAULT_HEAD_LIMIT = 250;
 
+	/**
+	 * 图片单边最大尺寸限制，超出将等比例缩放
+	 */
+	Integer MAX_IMAGE_EDGE = 2048;
+
 	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/");
 
 	default char getSeparator() {
@@ -184,4 +189,19 @@ public interface StorageProvider {
 		content
 
 	}
+
+	/**
+	 * Reads an image file and returns its base64-encoded string content. Supported formats: jpg, jpeg, png.
+	 */
+	String readImage(String path) throws IOException;
+
+	/**
+	 * Reads a PDF file and extracts its text content. Supports page ranges (1-based indices).
+	 */
+	String readPdf(String path, Integer startPage, Integer endPage) throws IOException;
+
+	/**
+	 * Reads an Office document (.docx, .xlsx, .pptx) and extracts its text.
+	 */
+	String readDocument(String path) throws IOException;
 }

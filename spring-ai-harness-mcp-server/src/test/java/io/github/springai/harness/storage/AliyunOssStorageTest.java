@@ -12,7 +12,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -853,6 +856,149 @@ class AliyunOssStorageTest {
 					assertThat(result).anyMatch(e -> e.contains(": 1")); // 1 match in file2
 				}
 
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Multimedia read tests")
+	class MultimediaReadTests {
+
+		@Test
+		@DisplayName("readImage validation and success")
+		void readImageSuccess() throws IOException {
+			java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(10, 10, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			javax.imageio.ImageIO.write(img, "png", baos);
+			byte[] imgBytes = baos.toByteArray();
+
+			OSSObject ossObject = new OSSObject();
+			ossObject.setObjectContent(new ByteArrayInputStream(imgBytes));
+			when(ossClient.getObject(eq(bucketName), eq(prefix + "test.png"))).thenReturn(ossObject);
+			when(ossClient.doesObjectExist(bucketName, prefix + "test.png")).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+			String result = storage.readImage("test.png");
+			assertThat(result).isEqualTo(Base64.getEncoder().encodeToString(imgBytes));
+
+			// Test invalid format
+			assertThatThrownBy(() -> storage.readImage("test.txt"))
+					.isInstanceOf(IllegalArgumentException.class)
+					.hasMessageContaining("Unsupported image format");
+
+			// Test not exists
+			when(ossClient.doesObjectExist(bucketName, prefix + "missing.png")).thenReturn(false);
+			assertThatThrownBy(() -> storage.readImage("missing.png"))
+					.isInstanceOf(FileNotFoundException.class);
+		}
+
+		@Test
+		@DisplayName("readImage should resize image if either side is greater than 2048")
+		void readImageResizeSuccess() throws IOException {
+			java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(3000, 1000, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+			java.awt.Graphics2D g = img.createGraphics();
+			g.setColor(java.awt.Color.RED);
+			g.fillRect(0, 0, 3000, 1000);
+			g.dispose();
+
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			javax.imageio.ImageIO.write(img, "png", baos);
+			byte[] imgBytes = baos.toByteArray();
+
+			OSSObject ossObject = new OSSObject();
+			ossObject.setObjectContent(new ByteArrayInputStream(imgBytes));
+			when(ossClient.getObject(eq(bucketName), eq(prefix + "large.png"))).thenReturn(ossObject);
+			when(ossClient.doesObjectExist(bucketName, prefix + "large.png")).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+			String base64Result = storage.readImage("large.png");
+			byte[] decodedRaw = Base64.getDecoder().decode(base64Result);
+
+			try (ByteArrayInputStream bais = new ByteArrayInputStream(decodedRaw)) {
+				java.awt.image.BufferedImage resizedImg = javax.imageio.ImageIO.read(bais);
+				assertThat(resizedImg).isNotNull();
+				int expectedHeight = (int) Math.round(1000.0 * StorageProvider.MAX_IMAGE_EDGE / 3000.0);
+				assertThat(resizedImg.getWidth()).isEqualTo(StorageProvider.MAX_IMAGE_EDGE);
+				assertThat(resizedImg.getHeight()).isEqualTo(expectedHeight);
+			}
+		}
+
+		@Test
+		@DisplayName("readPdf parsing and page ranges")
+		void readPdfSuccess() throws IOException {
+			// Generate a simple 2-page PDF in memory
+			try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
+				// Page 1
+				org.apache.pdfbox.pdmodel.PDPage page1 = new org.apache.pdfbox.pdmodel.PDPage();
+				doc.addPage(page1);
+				try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page1)) {
+					cs.beginText();
+					cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+					cs.newLineAtOffset(100, 700);
+					cs.showText("Hello Page 1");
+					cs.endText();
+				}
+
+				// Page 2
+				org.apache.pdfbox.pdmodel.PDPage page2 = new org.apache.pdfbox.pdmodel.PDPage();
+				doc.addPage(page2);
+				try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page2)) {
+					cs.beginText();
+					cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+					cs.newLineAtOffset(100, 700);
+					cs.showText("Hello Page 2");
+					cs.endText();
+				}
+
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				doc.save(baos);
+				byte[] pdfBytes = baos.toByteArray();
+
+				when(ossClient.getObject(eq(bucketName), eq(prefix + "doc.pdf"))).thenAnswer(invocation -> {
+					OSSObject obj = new OSSObject();
+					obj.setObjectContent(new ByteArrayInputStream(pdfBytes));
+					return obj;
+				});
+				when(ossClient.doesObjectExist(bucketName, prefix + "doc.pdf")).thenReturn(true);
+				when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+				// Test read full PDF
+				String fullText = storage.readPdf("doc.pdf", null, null);
+				assertThat(fullText).contains("Page").contains("1").contains("2");
+
+				// Test page 1 range
+				String p1Text = storage.readPdf("doc.pdf", 1, 1);
+				assertThat(p1Text).contains("Page").contains("1");
+				assertThat(p1Text).doesNotContain("Page    2").doesNotContain("Page 2");
+
+				// Test page 2 range
+				String p2Text = storage.readPdf("doc.pdf", 2, 2);
+				assertThat(p2Text).contains("Page").contains("2");
+				assertThat(p2Text).doesNotContain("Page    1").doesNotContain("Page 1");
+			}
+		}
+
+		@Test
+		@DisplayName("readDocument parsing Office docs")
+		void readDocumentSuccess() throws IOException {
+			// Generate a simple docx in memory
+			try (org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument()) {
+				org.apache.poi.xwpf.usermodel.XWPFParagraph p = doc.createParagraph();
+				org.apache.poi.xwpf.usermodel.XWPFRun r = p.createRun();
+				r.setText("Hello Docx Document Content");
+
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				doc.write(baos);
+				byte[] docxBytes = baos.toByteArray();
+
+				OSSObject ossObject = new OSSObject();
+				ossObject.setObjectContent(new ByteArrayInputStream(docxBytes));
+				when(ossClient.getObject(eq(bucketName), eq(prefix + "doc.docx"))).thenReturn(ossObject);
+				when(ossClient.doesObjectExist(bucketName, prefix + "doc.docx")).thenReturn(true);
+				when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+				String docText = storage.readDocument("doc.docx");
+				assertThat(docText).contains("Hello Docx Document Content");
 			}
 		}
 	}

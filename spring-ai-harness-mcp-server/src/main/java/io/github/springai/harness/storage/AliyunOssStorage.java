@@ -2,15 +2,26 @@ package io.github.springai.harness.storage;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.*;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
+import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
+import org.springframework.ai.reader.tika.TikaDocumentReader;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
+import java.util.Locale;
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,16 +116,15 @@ public class AliyunOssStorage implements StorageProvider {
 	public String readString(String path) throws IOException {
 		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
 			 InputStream is = ossObject.getObjectContent()) {
-			return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+			return FileContentProcessor.streamToString(is);
 		}
 	}
 
 	@Override
 	public List<String> readAllLines(String path) throws IOException {
 		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
-			 InputStream is = ossObject.getObjectContent();
-			 BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-			return reader.lines().collect(Collectors.toList());
+			 InputStream is = ossObject.getObjectContent()) {
+			return FileContentProcessor.streamToLines(is);
 		}
 	}
 
@@ -584,4 +594,57 @@ public class AliyunOssStorage implements StorageProvider {
 		return results;
 	}
 
+	@Override
+	public String readImage(String path) throws IOException {
+		Assert.hasText(path, "path must not be empty");
+		String lower = path.toLowerCase(Locale.ENGLISH);
+		if (!lower.endsWith(".png") && !lower.endsWith(".jpg") && !lower.endsWith(".jpeg")) {
+			throw new IllegalArgumentException("Unsupported image format. Only PNG and JPG/JPEG are supported.");
+		}
+		if (!exists(path) || isDirectory(path)) {
+			throw new FileNotFoundException("File not found or is a directory: " + path);
+		}
+
+		String fullKey = getFullKey(path);
+		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, fullKey);
+			 InputStream is = ossObject.getObjectContent()) {
+			return FileContentProcessor.processImageStream(is, path);
+		}
+	}
+
+	@Override
+	public String readPdf(String path, Integer startPage, Integer endPage) throws IOException {
+		Assert.hasText(path, "path must not be empty");
+		String lower = path.toLowerCase(Locale.ENGLISH);
+		if (!lower.endsWith(".pdf")) {
+			throw new IllegalArgumentException("Unsupported format. Expected a PDF file.");
+		}
+		if (!exists(path) || isDirectory(path)) {
+			throw new FileNotFoundException("File not found or is a directory: " + path);
+		}
+
+		String fullKey = getFullKey(path);
+		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, fullKey);
+			 InputStream is = ossObject.getObjectContent()) {
+			return FileContentProcessor.processPdfStream(is, startPage, endPage);
+		}
+	}
+
+	@Override
+	public String readDocument(String path) throws IOException {
+		Assert.hasText(path, "path must not be empty");
+		String lower = path.toLowerCase(Locale.ENGLISH);
+		if (!lower.endsWith(".docx") && !lower.endsWith(".xlsx") && !lower.endsWith(".pptx")) {
+			throw new IllegalArgumentException("Unsupported Office document format. Only .docx, .xlsx, and .pptx are supported.");
+		}
+		if (!exists(path) || isDirectory(path)) {
+			throw new FileNotFoundException("File not found or is a directory: " + path);
+		}
+
+		String fullKey = getFullKey(path);
+		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, fullKey);
+			 InputStream is = ossObject.getObjectContent()) {
+			return FileContentProcessor.processDocumentStream(is);
+		}
+	}
 }

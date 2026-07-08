@@ -5,6 +5,7 @@ import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
+import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
@@ -14,7 +15,9 @@ import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -42,45 +45,83 @@ public class FileSystemTools {
 	// @formatter:off
 	@McpTool(name = "Read", description = """
 		Reads a file from the filesystem. You can access any file directly by using this tool.
+		Supports text files, images (png, jpg, jpeg), PDFs, and Office documents (docx, xlsx, pptx).
 		Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
 		Usage:
 		- The filePath parameter must be a path relative to the workspace directory
-		- By default, it reads up to 2000 lines starting from the beginning of the file
-		- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
-		- Any lines longer than 2000 characters will be truncated
-		- Results are returned using cat -n format, with line numbers starting at 1
+		- By default for text files, it reads up to 2000 lines starting from the beginning of the file. You can optionally specify a line offset and limit (especially handy for long files).
+		- For PDFs, you can optionally specify startPage and endPage (1-based page indices).
+		- Any lines longer than 2000 characters will be truncated.
+		- For images, the binary data is returned in standard base64 multimedia format.
 		- This tool can only read files, not directories.
-		- You can call multiple tools in a single response. It is always better to speculatively read multiple potentially useful files in parallel.
-		- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
 		""")
-	public String read(
+	public McpSchema.CallToolResult read(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file to read, relative to the workspace") String filePath,
-			@McpToolParam(description = "The line number to start reading from. Only provide if the file is too large to read at once", required = false) Integer offset,
-			@McpToolParam(description = "The number of lines to read. Only provide if the file is too large to read at once.", required = false) Integer limit) { // @formatter:on
+			@McpToolParam(description = "The line number to start reading from (for text files). Only provide if the file is too large to read at once", required = false) Integer offset,
+			@McpToolParam(description = "The number of lines to read (for text files). Only provide if the file is too large to read at once.", required = false) Integer limit,
+			@McpToolParam(description = "The start page number to read (for PDF files, 1-based index). Only provide for PDFs.", required = false) Integer startPage,
+			@McpToolParam(description = "The end page number to read (for PDF files, 1-based index). Only provide for PDFs.", required = false) Integer endPage) { // @formatter:on
 
 		StorageProvider storageProvider = getStorageProvider(context);
 		try {
 			if (!storageProvider.exists(filePath)) {
-				return "Error: File does not exist: " + filePath;
+				return McpSchema.CallToolResult.builder()
+						.isError(true)
+						.addTextContent("Error: File does not exist: " + filePath)
+						.build();
 			}
 
 			if (storageProvider.isDirectory(filePath)) {
-				return "Error: Path is a directory, not a file: " + filePath;
+				return McpSchema.CallToolResult.builder()
+						.isError(true)
+						.addTextContent("Error: Path is a directory, not a file: " + filePath)
+						.build();
 			}
 
-			// Default values
+			String lower = filePath.toLowerCase(Locale.ENGLISH);
+
+			// Handle Images
+			if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+				String base64Data = storageProvider.readImage(filePath);
+				String mimeType = lower.endsWith(".png") ? "image/png" : "image/jpeg";
+				return McpSchema.CallToolResult.builder()
+						.addContent(new McpSchema.ImageContent(null, base64Data, mimeType))
+						.build();
+			}
+
+			// Handle PDFs
+			if (lower.endsWith(".pdf")) {
+				String pdfText = storageProvider.readPdf(filePath, startPage, endPage);
+				return McpSchema.CallToolResult.builder()
+						.addTextContent(pdfText)
+						.build();
+			}
+
+			// Handle Office Documents
+			if (lower.endsWith(".docx") || lower.endsWith(".xlsx") || lower.endsWith(".pptx")) {
+				String docText = storageProvider.readDocument(filePath);
+				return McpSchema.CallToolResult.builder()
+						.addTextContent(docText)
+						.build();
+			}
+
+			// Default: Handle text files
 			int maxLines = limit != null ? limit : StorageProvider.MAX_LINES;
 			int realOffset = (offset == null || offset < 1) ? 1 : offset;
 
 			List<String> rawLines = storageProvider.readAllLines(filePath);
 			if (rawLines.isEmpty()) {
-				return "File is empty: " + filePath;
+				return McpSchema.CallToolResult.builder()
+						.addTextContent("File is empty: " + filePath)
+						.build();
 			}
 			if (realOffset > rawLines.size()) {
-				return String.format("No lines to read. File has %d lines, but offset was %d", rawLines.size(),
-						offset);
+				return McpSchema.CallToolResult.builder()
+						.isError(true)
+						.addTextContent(String.format("No lines to read. File has %d lines, but offset was %d", rawLines.size(), offset))
+						.build();
 			}
 
 			AtomicInteger currentLine = new AtomicInteger(realOffset);
@@ -92,17 +133,21 @@ public class FileSystemTools {
 
 			StringBuilder result = new StringBuilder();
 			result.append(String.format("File: %s\n", filePath));
-			result.append(
-					String.format("Showing lines %d-%d of %d\n\n", realOffset, realOffset + lines.size() - 1, rawLines.size()));
+			result.append(String.format("Showing lines %d-%d of %d\n\n", realOffset, realOffset + lines.size() - 1, rawLines.size()));
 
 			for (String line : lines) {
 				result.append(line).append("\n");
 			}
 
-			return result.toString();
+			return McpSchema.CallToolResult.builder()
+					.addTextContent(result.toString())
+					.build();
 
-		} catch (IOException e) {
-			return "Error reading file: " + e.getMessage();
+		} catch (Exception e) {
+			return McpSchema.CallToolResult.builder()
+					.isError(true)
+					.addTextContent("Error reading file: " + e.getMessage())
+					.build();
 		}
 	}
 
