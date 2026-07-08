@@ -45,125 +45,90 @@ public class WorkspaceApiController {
 	@GetMapping("/files")
 	public ResponseEntity<?> listFiles(
 			HttpServletRequest request,
-			@RequestParam(value = "path", required = false, defaultValue = "") String path) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			List<StorageProvider.Info> items = storage.listDirectory(path);
-			List<FileItemDto> dtoList = new ArrayList<>();
-			for (StorageProvider.Info item : items) {
-				dtoList.add(new FileItemDto(item.path(), item.isDirectory(), item.size(), item.lastModified()));
-			}
-			return ResponseEntity.ok(dtoList);
-		} catch (Exception e) {
-			log.error("Failed to list workspace files for path '{}': {}", path, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+			@RequestParam(value = "path", required = false, defaultValue = "") String path) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		List<StorageProvider.Info> items = storage.listDirectory(path);
+		List<FileItemDto> dtoList = new ArrayList<>();
+		for (StorageProvider.Info item : items) {
+			dtoList.add(new FileItemDto(item.path(), item.isDirectory(), item.size(), item.lastModified()));
 		}
+		return ResponseEntity.ok(dtoList);
 	}
 
 	@GetMapping("/files/content")
 	public ResponseEntity<?> getFileContent(
 			HttpServletRequest request,
-			@RequestParam("path") String path) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			if (!storage.exists(path)) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "File not found: " + path));
-			}
-			if (storage.isDirectory(path)) {
-				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Path is a directory: " + path));
-			}
-			String content = storage.readString(path);
-			return ResponseEntity.ok(content);
-		} catch (Exception e) {
-			log.error("Failed to read file content for '{}': {}", path, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+			@RequestParam("path") String path) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		if (!storage.exists(path)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "File not found: " + path));
 		}
+		if (storage.isDirectory(path)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Path is a directory: " + path));
+		}
+		String content = storage.readString(path);
+		return ResponseEntity.ok(content);
 	}
 
 	@PostMapping("/files/upload")
 	public ResponseEntity<?> uploadFile(
 			HttpServletRequest request,
 			@RequestParam("path") String path,
-			@RequestBody String content) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			snapshotProvider.createSnapshot(storage, path, "WRITE");
-			storage.writeString(path, content != null ? content : "");
-			return ResponseEntity.ok(Map.of("message", "File uploaded successfully", "path", path));
-		} catch (Exception e) {
-			log.error("Failed to upload file to '{}': {}", path, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
-		}
+			@RequestBody String content) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		snapshotProvider.createSnapshot(storage, path, "WRITE");
+		storage.writeString(path, content != null ? content : "");
+		return ResponseEntity.ok(Map.of("message", "File uploaded successfully", "path", path));
 	}
 
 	@DeleteMapping("/files")
 	public ResponseEntity<?> deleteFile(
 			HttpServletRequest request,
 			@RequestParam("path") String path,
-			@RequestParam(value = "trash", required = false, defaultValue = "true") boolean trash) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			if (!storage.exists(path)) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Path not found: " + path));
-			}
-			snapshotProvider.createSnapshot(storage, path, "TRASH");
-			if (trash) {
-				storage.trash(path);
-				return ResponseEntity.ok(Map.of("message", "Moved to trash successfully", "path", path));
-			} else {
-				storage.delete(path);
-				return ResponseEntity.ok(Map.of("message", "Deleted file successfully", "path", path));
-			}
-		} catch (Exception e) {
-			log.error("Failed to delete file '{}': {}", path, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+			@RequestParam(value = "trash", required = false, defaultValue = "true") boolean trash) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		if (!storage.exists(path)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Path not found: " + path));
+		}
+		snapshotProvider.createSnapshot(storage, path, "TRASH");
+		if (trash) {
+			storage.trash(path);
+			return ResponseEntity.ok(Map.of("message", "Moved to trash successfully", "path", path));
+		} else {
+			storage.delete(path);
+			return ResponseEntity.ok(Map.of("message", "Deleted file successfully", "path", path));
 		}
 	}
 
 	@GetMapping("/snapshots")
 	public ResponseEntity<?> listSnapshots(
 			HttpServletRequest request,
-			@RequestParam(value = "path", required = false) String path) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			List<SnapshotInfo> snapshots = snapshotProvider.listSnapshots(storage, path);
-			return ResponseEntity.ok(snapshots);
-		} catch (Exception e) {
-			log.error("Failed to list snapshots: {}", e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
-		}
+			@RequestParam(value = "path", required = false) String path) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		List<SnapshotInfo> snapshots = snapshotProvider.listSnapshots(storage, path);
+		return ResponseEntity.ok(snapshots);
 	}
 
 	@PostMapping("/rewind/{snapshotId}")
 	public ResponseEntity<?> rewind(
 			HttpServletRequest request,
-			@PathVariable("snapshotId") String snapshotId) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			String result = snapshotProvider.rewind(storage, snapshotId);
-			return ResponseEntity.ok(Map.of("message", result));
-		} catch (Exception e) {
-			log.error("Failed to rewind snapshot '{}': {}", snapshotId, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
-		}
+			@PathVariable("snapshotId") String snapshotId) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		String result = snapshotProvider.rewind(storage, snapshotId);
+		return ResponseEntity.ok(Map.of("message", result));
 	}
 
 	@PostMapping("/files/move")
 	public ResponseEntity<?> moveFile(
 			HttpServletRequest request,
 			@RequestParam("fromPath") String fromPath,
-			@RequestParam("toPath") String toPath) {
-		try {
-			StorageProvider storage = getStorageProvider(request);
-			if (!storage.exists(fromPath)) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Source path not found: " + fromPath));
-			}
-			snapshotProvider.createSnapshot(storage, fromPath, "MOVE");
-			storage.rename(fromPath, toPath);
-			return ResponseEntity.ok(Map.of("message", "File moved successfully", "fromPath", fromPath, "toPath", toPath));
-		} catch (Exception e) {
-			log.error("Failed to move file from '{}' to '{}': {}", fromPath, toPath, e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+			@RequestParam("toPath") String toPath) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		if (!storage.exists(fromPath)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Source path not found: " + fromPath));
 		}
+		snapshotProvider.createSnapshot(storage, fromPath, "MOVE");
+		storage.rename(fromPath, toPath);
+		return ResponseEntity.ok(Map.of("message", "File moved successfully", "fromPath", fromPath, "toPath", toPath));
 	}
 }

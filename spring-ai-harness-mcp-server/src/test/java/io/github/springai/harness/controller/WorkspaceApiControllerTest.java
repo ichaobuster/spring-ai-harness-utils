@@ -45,7 +45,9 @@ class WorkspaceApiControllerTest {
 
 	@BeforeEach
 	void setUp() {
-		mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+		mockMvc = MockMvcBuilders.standaloneSetup(controller)
+				.setControllerAdvice(new GlobalRestExceptionHandler())
+				.build();
 	}
 
 	@Test
@@ -65,13 +67,13 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when list files throws exception")
-	void shouldReturn400WhenListFilesFails() throws Exception {
+	@DisplayName("Should return 500 when list files throws exception")
+	void shouldReturn500WhenListFilesFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenThrow(new RuntimeException("Storage error"));
 
 		mockMvc.perform(get("/api/v1/workspace/files")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Storage error"));
 	}
 
@@ -118,15 +120,15 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when get file content throws exception")
-	void shouldReturn400WhenGetFileContentFails() throws Exception {
+	@DisplayName("Should return 500 when get file content throws exception")
+	void shouldReturn500WhenGetFileContentFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(storageProvider.exists("foo.txt")).thenThrow(new RuntimeException("Read error"));
 
 		mockMvc.perform(get("/api/v1/workspace/files/content")
 						.param("path", "foo.txt")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Read error"));
 	}
 
@@ -147,8 +149,8 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when upload file throws exception")
-	void shouldReturn400WhenUploadFileFails() throws Exception {
+	@DisplayName("Should return 500 when upload file throws exception")
+	void shouldReturn500WhenUploadFileFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		doThrow(new RuntimeException("Write error")).when(storageProvider).writeString("foo.txt", "New Content");
 
@@ -156,7 +158,7 @@ class WorkspaceApiControllerTest {
 						.param("path", "foo.txt")
 						.content("New Content")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Write error"));
 	}
 
@@ -208,8 +210,8 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when delete throws exception")
-	void shouldReturn400WhenDeleteFails() throws Exception {
+	@DisplayName("Should return 500 when delete throws exception")
+	void shouldReturn500WhenDeleteFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(storageProvider.exists("foo.txt")).thenReturn(true);
 		doThrow(new RuntimeException("Trash error")).when(storageProvider).trash("foo.txt");
@@ -217,7 +219,7 @@ class WorkspaceApiControllerTest {
 		mockMvc.perform(delete("/api/v1/workspace/files")
 						.param("path", "foo.txt")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Trash error"));
 	}
 
@@ -238,14 +240,14 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when list snapshots throws exception")
-	void shouldReturn400WhenListSnapshotsFails() throws Exception {
+	@DisplayName("Should return 500 when list snapshots throws exception")
+	void shouldReturn500WhenListSnapshotsFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(snapshotProvider.listSnapshots(any(), any())).thenThrow(new IOException("Snapshot read error"));
 
 		mockMvc.perform(get("/api/v1/workspace/snapshots")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Snapshot read error"));
 	}
 
@@ -262,26 +264,26 @@ class WorkspaceApiControllerTest {
 	}
 
 	@Test
-	@DisplayName("Should return 400 when rewind returns error message")
-	void shouldReturn400WhenRewindReturnsError() throws Exception {
+	@DisplayName("Should return 500 when rewind returns error message")
+	void shouldReturn500WhenRewindReturnsError() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(snapshotProvider.rewind(storageProvider, "invalid-snap")).thenThrow(new java.io.FileNotFoundException("Snapshot not found: invalid-snap"));
 
 		mockMvc.perform(post("/api/v1/workspace/rewind/invalid-snap")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Snapshot not found: invalid-snap"));
 	}
 
 	@Test
-	@DisplayName("Should return 400 when rewind throws exception")
-	void shouldReturn400WhenRewindFails() throws Exception {
+	@DisplayName("Should return 500 when rewind throws exception")
+	void shouldReturn500WhenRewindFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 		when(snapshotProvider.rewind(any(), any())).thenThrow(new RuntimeException("Rewind error"));
 
 		mockMvc.perform(post("/api/v1/workspace/rewind/snap1")
 						.header("Authorization", "sys1-agent1-user1"))
-				.andExpect(status().isBadRequest())
+				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Rewind error"));
 	}
 
