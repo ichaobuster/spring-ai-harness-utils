@@ -54,6 +54,7 @@ export const McpDebugger = () => {
   // Setup mock ID counter for JSON-RPC requests using useRef (prevents race conditions)
   const rpcIdRef = useRef(1);
   const [isInitialized, setIsInitialized] = useState(false);
+  const isInitializedRef = useRef(false);
   const initPromiseRef = useRef(null);
 
   const getNextRpcId = () => {
@@ -65,6 +66,7 @@ export const McpDebugger = () => {
   // Reset initialization state when authHeader changes
   useEffect(() => {
     setIsInitialized(false);
+    isInitializedRef.current = false;
     initPromiseRef.current = null;
 
     const startFetch = async () => {
@@ -93,7 +95,7 @@ export const McpDebugger = () => {
   }, [selectedToolName, tools]);
 
   const ensureInitialized = async () => {
-    if (isInitialized) return;
+    if (isInitializedRef.current) return;
     if (initPromiseRef.current) {
       return initPromiseRef.current;
     }
@@ -137,6 +139,7 @@ export const McpDebugger = () => {
       await api.callMcp(authHeader, initializedPayload);
 
       setIsInitialized(true);
+      isInitializedRef.current = true;
       initPromiseRef.current = null;
     };
 

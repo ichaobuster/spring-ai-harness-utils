@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layout,
   Input,
@@ -54,8 +54,16 @@ export const FileExplorer = () => {
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameForm] = Form.useForm();
 
+  // Track last fetched parameters to prevent duplicate mount/render calls
+  const lastFetchRef = useRef({ path: null, auth: null });
+
   // Fetch File Items
-  const fetchFiles = async () => {
+  const fetchFiles = async (force = false) => {
+    if (!force && lastFetchRef.current.path === currentPath && lastFetchRef.current.auth === userAuth) {
+      return;
+    }
+    lastFetchRef.current = { path: currentPath, auth: userAuth };
+
     setLoading(true);
     try {
       const data = await api.listFiles(userAuth, currentPath);
@@ -97,7 +105,7 @@ export const FileExplorer = () => {
     try {
       await api.moveFile(userAuth, fromPath, toPath);
       message.success(`Successfully moved '${fromPath}' to '${toPath}'`);
-      fetchFiles();
+      fetchFiles(true);
     } catch (err) {
       message.error(`Move failed: ${err.response?.data?.error || err.message}`);
     }
@@ -108,7 +116,7 @@ export const FileExplorer = () => {
     try {
       await api.deleteFile(userAuth, path, trash);
       message.success(`Successfully deleted '${path}'`);
-      fetchFiles();
+      fetchFiles(true);
     } catch (err) {
       message.error(`Delete failed: ${err.response?.data?.error || err.message}`);
     }
@@ -117,7 +125,7 @@ export const FileExplorer = () => {
   // Create New Item handler
   const handleCreateItem = async (path, content) => {
     await api.uploadFile(userAuth, path, content);
-    fetchFiles();
+    fetchFiles(true);
   };
 
   // Rename modal submit
@@ -341,7 +349,7 @@ export const FileExplorer = () => {
         filePath={snapshotTargetFile}
         authHeader={userAuth}
         onClose={() => setSnapshotDrawerVisible(false)}
-        onRewindSuccess={fetchFiles}
+        onRewindSuccess={() => fetchFiles(true)}
       />
 
       {/* Rename Modal */}
