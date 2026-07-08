@@ -86,7 +86,7 @@ export const FileListTable = ({
             onClick={() => onItemClick(record)}
           >
             {getFileIcon(record)}
-            <span style={{ fontWeight: record.isDirectory ? 600 : 400, color: '#f8fafc' }}>
+            <span style={{ fontWeight: record.isDirectory ? 600 : 400, color: 'var(--text-primary)' }}>
               {displayName}
             </span>
           </Space>

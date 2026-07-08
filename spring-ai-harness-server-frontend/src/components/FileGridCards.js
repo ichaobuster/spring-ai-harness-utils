@@ -120,14 +120,14 @@ export const FileGridCards = ({
               className={`explorer-item ${dragOverPath === item.path ? 'drag-over' : ''}`}
               style={{
                 textAlign: 'center',
-                background: 'rgba(30, 41, 59, 0.6)',
-                borderColor: 'rgba(255, 255, 255, 0.08)'
+                background: 'var(--bg-card)',
+                borderColor: 'var(--border-color)'
               }}
               bodyStyle={{ padding: 16 }}
             >
               <div style={{ position: 'absolute', top: 8, right: 8 }}>
                 <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-                  <MoreOutlined style={{ color: '#94a3b8', fontSize: 16, cursor: 'pointer' }} />
+                  <MoreOutlined style={{ color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer' }} />
                 </Dropdown>
               </div>
 
@@ -136,7 +136,7 @@ export const FileGridCards = ({
               <Text
                 ellipsis={{ tooltip: displayName }}
                 style={{
-                  color: '#f8fafc',
+                  color: 'var(--text-primary)',
                   fontWeight: item.isDirectory ? 600 : 400,
                   display: 'block',
                   marginBottom: 4
