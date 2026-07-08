@@ -8,8 +8,6 @@ import {
   Breadcrumb,
   Modal,
   Form,
-  Select,
-  Tag,
   message,
   Tooltip,
   Badge
@@ -21,8 +19,6 @@ import {
   HistoryOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
-  UserOutlined,
-  SafetyCertificateOutlined,
   ArrowUpOutlined,
   SearchOutlined
 } from '@ant-design/icons';
@@ -37,11 +33,7 @@ const { Header, Content } = Layout;
 
 export const FileExplorer = () => {
   // Mode & Auth State
-  const [isAdminMode, setIsAdminMode] = useState(false);
   const [userAuth, setUserAuth] = useState('sys1-agent1-user1');
-  const [adminToken, setAdminToken] = useState('admin-secret');
-  const [workspaces, setWorkspaces] = useState([]);
-  const [selectedWorkspace, setSelectedWorkspace] = useState('sys1-agent1-user1');
 
   // File Manager Navigation State
   const [currentPath, setCurrentPath] = useState('');
@@ -66,12 +58,7 @@ export const FileExplorer = () => {
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      let data = [];
-      if (isAdminMode) {
-        data = await api.listAdminWorkspaceFiles(adminToken, selectedWorkspace, currentPath);
-      } else {
-        data = await api.listFiles(userAuth, currentPath);
-      }
+      const data = await api.listFiles(userAuth, currentPath);
       setItems(data || []);
     } catch (err) {
       message.error(`Failed to load files: ${err.response?.data?.error || err.message}`);
@@ -80,28 +67,9 @@ export const FileExplorer = () => {
     }
   };
 
-  // Fetch Workspaces for Admin Mode
-  const fetchWorkspaces = async () => {
-    try {
-      const data = await api.listWorkspaces(adminToken);
-      setWorkspaces(data || []);
-      if (data && data.length > 0 && !data.some(w => w.workspaceId === selectedWorkspace)) {
-        setSelectedWorkspace(data[0].workspaceId);
-      }
-    } catch (err) {
-      message.error(`Failed to fetch workspaces: ${err.response?.data?.error || err.message}`);
-    }
-  };
-
   useEffect(() => {
     fetchFiles();
-  }, [currentPath, isAdminMode, selectedWorkspace, userAuth, adminToken]);
-
-  useEffect(() => {
-    if (isAdminMode) {
-      fetchWorkspaces();
-    }
-  }, [isAdminMode]);
+  }, [currentPath, userAuth]);
 
   // Navigation handlers
   const handleItemClick = (item) => {
@@ -127,11 +95,7 @@ export const FileExplorer = () => {
   // Move / Rename handler
   const handleMoveItem = async (fromPath, toPath) => {
     try {
-      if (isAdminMode) {
-        await api.moveAdminWorkspaceFile(adminToken, selectedWorkspace, fromPath, toPath);
-      } else {
-        await api.moveFile(userAuth, fromPath, toPath);
-      }
+      await api.moveFile(userAuth, fromPath, toPath);
       message.success(`Successfully moved '${fromPath}' to '${toPath}'`);
       fetchFiles();
     } catch (err) {
@@ -142,11 +106,7 @@ export const FileExplorer = () => {
   // Delete handler
   const handleDelete = async (path, trash = true) => {
     try {
-      if (isAdminMode) {
-        await api.deleteAdminWorkspaceFile(adminToken, selectedWorkspace, path);
-      } else {
-        await api.deleteFile(userAuth, path, trash);
-      }
+      await api.deleteFile(userAuth, path, trash);
       message.success(`Successfully deleted '${path}'`);
       fetchFiles();
     } catch (err) {
@@ -156,12 +116,7 @@ export const FileExplorer = () => {
 
   // Create New Item handler
   const handleCreateItem = async (path, content) => {
-    if (isAdminMode) {
-      // In admin mode, write via user endpoint or upload
-      await api.uploadFile(selectedWorkspace, path, content);
-    } else {
-      await api.uploadFile(userAuth, path, content);
-    }
+    await api.uploadFile(userAuth, path, content);
     fetchFiles();
   };
 
@@ -253,53 +208,15 @@ export const FileExplorer = () => {
           <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
             Spring AI Harness OSS File Manager
           </span>
-          <Tag color={isAdminMode ? 'purple' : 'cyan'}>
-            {isAdminMode ? 'ADMIN MODE' : 'USER WORKSPACE'}
-          </Tag>
         </Space>
 
         <Space size="large" align="center">
-          {/* Mode Switcher */}
-          <Radio.Group
-            value={isAdminMode}
-            onChange={(e) => setIsAdminMode(e.target.value)}
-            buttonStyle="solid"
-          >
-            <Radio.Button value={false}>
-              <UserOutlined /> User Mode
-            </Radio.Button>
-            <Radio.Button value={true}>
-              <SafetyCertificateOutlined /> Admin Mode
-            </Radio.Button>
-          </Radio.Group>
-
-          {!isAdminMode ? (
-            <Input
-              addonBefore="Auth Header"
-              value={userAuth}
-              onChange={(e) => setUserAuth(e.target.value)}
-              style={{ width: 280 }}
-            />
-          ) : (
-            <Space align="center">
-              <Input
-                addonBefore="Admin Token"
-                type="password"
-                value={adminToken}
-                onChange={(e) => setAdminToken(e.target.value)}
-                style={{ width: 220 }}
-              />
-              <Select
-                value={selectedWorkspace}
-                onChange={setSelectedWorkspace}
-                style={{ width: 240 }}
-                options={workspaces.map((w) => ({
-                  label: `Workspace: ${w.workspaceId}`,
-                  value: w.workspaceId
-                }))}
-              />
-            </Space>
-          )}
+          <Input
+            addonBefore="Auth Header"
+            value={userAuth}
+            onChange={(e) => setUserAuth(e.target.value)}
+            style={{ width: 280 }}
+          />
         </Space>
       </Header>
 
@@ -350,19 +267,17 @@ export const FileExplorer = () => {
                 New Item
               </Button>
 
-              {!isAdminMode && (
-                <Badge count={0}>
-                  <Button
-                    icon={<HistoryOutlined />}
-                    onClick={() => {
-                      setSnapshotTargetFile('');
-                      setSnapshotDrawerVisible(true);
-                    }}
-                  >
-                    Snapshots
-                  </Button>
-                </Badge>
-              )}
+              <Badge count={0}>
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => {
+                    setSnapshotTargetFile('');
+                    setSnapshotDrawerVisible(true);
+                  }}
+                >
+                  Snapshots
+                </Button>
+              </Badge>
 
               <Tooltip title="Refresh Directory">
                 <Button icon={<ReloadOutlined />} onClick={fetchFiles} loading={loading} />
@@ -412,7 +327,7 @@ export const FileExplorer = () => {
       <FileViewerModal
         visible={viewerVisible}
         filePath={selectedFilePath}
-        authHeader={isAdminMode ? selectedWorkspace : userAuth}
+        authHeader={userAuth}
         onClose={() => setViewerVisible(false)}
         onOpenSnapshots={(path) => {
           setSnapshotTargetFile(path);
@@ -424,7 +339,7 @@ export const FileExplorer = () => {
       <SnapshotDrawer
         visible={snapshotDrawerVisible}
         filePath={snapshotTargetFile}
-        authHeader={isAdminMode ? selectedWorkspace : userAuth}
+        authHeader={userAuth}
         onClose={() => setSnapshotDrawerVisible(false)}
         onRewindSuccess={fetchFiles}
       />
