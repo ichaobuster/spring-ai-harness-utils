@@ -10,7 +10,7 @@
 ## 根目录架构概述
 
 该项目由两大核心子模块构成：
-1. **`spring-ai-harness-mcp-server`**：基于 Spring Boot & Spring AI MCP 实现 of 无状态服务端，提供工作区安全路径过滤、Snapshot 快照创建与版本回退、可插拔 OTel 链路追踪观测。
+1. **`spring-ai-harness-mcp-server`**：基于 Spring Boot & Spring AI MCP 实现的无状态服务端，提供工作区安全路径过滤、Snapshot 快照创建与版本回退、可插拔 OTel 链路追踪观测。
 2. **`spring-ai-harness-server-frontend`**：基于 React 18 + Ant Design 5 + Vite 构建的管理后台 Web 控制台，包含 Windows 资源管理器风格的文件管理及 MCP Client 调试器。
 
 ### 统一设计原则与安全规范
@@ -95,7 +95,7 @@ spring-ai-harness-server-frontend/
 │   │   ├── FileExplorer.js      # Windows 资源管理器界面主组件
 │   │   ├── FileListTable.js     # 表格列表视图组件
 │   │   ├── FileGridCards.js     # 网格平铺卡片视图组件
-│   │   ├── McpDebugger.js       # 内置 of MCP 客户端 JSON-RPC 调试面板
+│   │   ├── McpDebugger.js       # 内置的 MCP 客户端 JSON-RPC 调试面板
 │   │   └── SnapshotDrawer.js    # 侧边栏快照列表及 Rewind 控制台
 │   ├── services/
 │   │   └── api.js               # 基于 Axios 的后端管理服务及 /mcp 发包器

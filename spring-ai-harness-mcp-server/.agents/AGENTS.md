@@ -11,7 +11,7 @@
 
 ### 为什么需要这个项目
 
-不同的 agents 使用不同的开发语言、SDK、plugin 和 hook，导致为解决 agent loop runtime 越权读写文件、执行高危命令等安全问题，需要在各个 agent 上分别开发多种 plugins。而所有 these agents 都支持 MCP Server 协议，因此通过：
+不同的 agents 使用不同的开发语言、SDK、plugin 和 hook，导致为解决 agent loop runtime 越权读写文件、执行高危命令等安全问题，需要在各个 agent 上分别开发多种 plugins。而所有这些 agents 都支持 MCP Server 协议，因此通过：
 
 1. **禁用** agents 内置的文件操作工具（read、write、edit、glob、grep 等）
 2. **替代** 为统一的 MCP Server 提供这些能力
