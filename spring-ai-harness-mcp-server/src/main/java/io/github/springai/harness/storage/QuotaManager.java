@@ -32,6 +32,10 @@ public class QuotaManager {
 		return quotaProperties.isIncludeSnapshots();
 	}
 
+	public boolean isShadowCacheIncluded() {
+		return quotaProperties.isIncludeShadowCache();
+	}
+
 	public String getMetaFile() {
 		return quotaProperties.getMetaFile();
 	}
@@ -130,6 +134,9 @@ public class QuotaManager {
 		}
 		if (!quotaProperties.isIncludeTrash()) {
 			excludes.add(".trash/");
+		}
+		if (!quotaProperties.isIncludeShadowCache()) {
+			excludes.add(".shadow/");
 		}
 		// 元文件自身不计入容量
 		excludes.add(quotaProperties.getMetaFile());

@@ -954,6 +954,10 @@ class AliyunOssStorageTest {
 				doc.save(baos);
 				byte[] pdfBytes = baos.toByteArray();
 
+				SimplifiedObjectMeta meta = mock(SimplifiedObjectMeta.class);
+				when(meta.getETag()).thenReturn("pdf-etag");
+				when(ossClient.getSimplifiedObjectMeta(eq(bucketName), eq(prefix + "doc.pdf"))).thenReturn(meta);
+
 				when(ossClient.getObject(eq(bucketName), eq(prefix + "doc.pdf"))).thenAnswer(invocation -> {
 					OSSObject obj = new OSSObject();
 					obj.setObjectContent(new ByteArrayInputStream(pdfBytes));
@@ -990,6 +994,10 @@ class AliyunOssStorageTest {
 				ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				doc.write(baos);
 				byte[] docxBytes = baos.toByteArray();
+
+				SimplifiedObjectMeta meta = mock(SimplifiedObjectMeta.class);
+				when(meta.getETag()).thenReturn("docx-etag");
+				when(ossClient.getSimplifiedObjectMeta(eq(bucketName), eq(prefix + "doc.docx"))).thenReturn(meta);
 
 				OSSObject ossObject = new OSSObject();
 				ossObject.setObjectContent(new ByteArrayInputStream(docxBytes));
@@ -1056,5 +1064,181 @@ class AliyunOssStorageTest {
 
 		assertThat(size).isEqualTo(250L); // 100 + 150
 		verify(ossClient, times(2)).listObjects(any(ListObjectsRequest.class));
+	}
+
+	@Nested
+	@DisplayName("Shadow Cache Tests")
+	class ShadowCacheTests {
+
+		@Test
+		@DisplayName("readPdf should cache text on first read and reuse on second read")
+		void shouldCachePdfAndReuse() throws IOException {
+			// Generate a simple 1-page PDF
+			byte[] pdfBytes;
+			try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
+				org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+				doc.addPage(page);
+				try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page)) {
+					cs.beginText();
+					cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+					cs.newLineAtOffset(100, 700);
+					cs.showText("Cached PDF Content page 1");
+					cs.endText();
+				}
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				doc.save(baos);
+				pdfBytes = baos.toByteArray();
+			}
+
+			String path = "test.pdf";
+			String fullKey = prefix + path;
+			String etag = "test-pdf-etag";
+			String shadowKey = prefix + ".shadow/" + path + "." + etag + ".txt";
+
+			// Mock doesObjectExist for doc check
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+			// Mock ETag retrieval
+			SimplifiedObjectMeta meta = mock(SimplifiedObjectMeta.class);
+			when(meta.getETag()).thenReturn(etag);
+			when(ossClient.getSimplifiedObjectMeta(bucketName, fullKey)).thenReturn(meta);
+
+			// First read: cache miss
+			when(ossClient.doesObjectExist(bucketName, shadowKey)).thenReturn(false);
+			
+			OSSObject pdfObj = new OSSObject();
+			pdfObj.setObjectContent(new ByteArrayInputStream(pdfBytes));
+			when(ossClient.getObject(bucketName, fullKey)).thenReturn(pdfObj);
+
+			String text1 = storage.readPdf(path, null, null);
+			assertThat(text1).contains("Cached").contains("PDF").contains("Content");
+
+			// Verify parsed PDF was written to shadow cache
+			verify(ossClient).putObject(eq(bucketName), eq(shadowKey), any(java.io.InputStream.class));
+
+			// Second read: cache hit
+			reset(ossClient); // reset mocks to verify no getObject is called
+			
+			// Mock ETag again since mock was reset
+			when(ossClient.getSimplifiedObjectMeta(bucketName, fullKey)).thenReturn(meta);
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+			
+			when(ossClient.doesObjectExist(bucketName, shadowKey)).thenReturn(true);
+			
+			OSSObject shadowObj = new OSSObject();
+			shadowObj.setObjectContent(new ByteArrayInputStream("Cached PDF Content page 1".getBytes(StandardCharsets.UTF_8)));
+			when(ossClient.getObject(bucketName, shadowKey)).thenReturn(shadowObj);
+
+			String text2 = storage.readPdf(path, null, null);
+			assertThat(text2).isEqualTo("Cached PDF Content page 1");
+
+			// Verify we did NOT call getObject for the original PDF
+			verify(ossClient, never()).getObject(bucketName, fullKey);
+			verify(ossClient).getObject(bucketName, shadowKey);
+		}
+
+		@Test
+		@DisplayName("readPdf should invalidate cache when ETag changes")
+		void shouldInvalidateCacheOnEtagChange() throws IOException {
+			// Generate a simple PDF
+			byte[] pdfBytes;
+			try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
+				org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+				doc.addPage(page);
+				try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page)) {
+					cs.beginText();
+					cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+					cs.newLineAtOffset(100, 700);
+					cs.showText("New PDF Content");
+					cs.endText();
+				}
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				doc.save(baos);
+				pdfBytes = baos.toByteArray();
+			}
+
+			String path = "test.pdf";
+			String fullKey = prefix + path;
+			String etag1 = "etag-version-1";
+			String etag2 = "etag-version-2";
+			String shadowKey2 = prefix + ".shadow/" + path + "." + etag2 + ".txt";
+
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+			// Mock ETag returning new etag
+			SimplifiedObjectMeta meta2 = mock(SimplifiedObjectMeta.class);
+			when(meta2.getETag()).thenReturn(etag2);
+			when(ossClient.getSimplifiedObjectMeta(bucketName, fullKey)).thenReturn(meta2);
+
+			// Cache miss for shadowKey2
+			when(ossClient.doesObjectExist(bucketName, shadowKey2)).thenReturn(false);
+
+			OSSObject pdfObj = new OSSObject();
+			pdfObj.setObjectContent(new ByteArrayInputStream(pdfBytes));
+			when(ossClient.getObject(bucketName, fullKey)).thenReturn(pdfObj);
+
+			String text = storage.readPdf(path, null, null);
+			assertThat(text).contains("New").contains("PDF").contains("Content");
+
+			// Verify it writes new shadow file
+			verify(ossClient).putObject(eq(bucketName), eq(shadowKey2), any(java.io.InputStream.class));
+		}
+
+		@Test
+		@DisplayName("readDocument should cache doc text on first read and reuse on second read")
+		void shouldCacheDocumentAndReuse() throws IOException {
+			byte[] docxBytes;
+			try (org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument()) {
+				org.apache.poi.xwpf.usermodel.XWPFParagraph p = doc.createParagraph();
+				org.apache.poi.xwpf.usermodel.XWPFRun r = p.createRun();
+				r.setText("Cached Doc Content");
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				doc.write(baos);
+				docxBytes = baos.toByteArray();
+			}
+
+			String path = "test.docx";
+			String fullKey = prefix + path;
+			String etag = "docx-etag";
+			String shadowKey = prefix + ".shadow/" + path + "." + etag + ".txt";
+
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+
+			SimplifiedObjectMeta meta = mock(SimplifiedObjectMeta.class);
+			when(meta.getETag()).thenReturn(etag);
+			when(ossClient.getSimplifiedObjectMeta(bucketName, fullKey)).thenReturn(meta);
+
+			// First read: cache miss
+			when(ossClient.doesObjectExist(bucketName, shadowKey)).thenReturn(false);
+
+			OSSObject docObj = new OSSObject();
+			docObj.setObjectContent(new ByteArrayInputStream(docxBytes));
+			when(ossClient.getObject(bucketName, fullKey)).thenReturn(docObj);
+
+			String text1 = storage.readDocument(path);
+			assertThat(text1).contains("Cached Doc Content");
+
+			verify(ossClient).putObject(eq(bucketName), eq(shadowKey), any(java.io.InputStream.class));
+
+			// Second read: cache hit
+			reset(ossClient);
+			when(ossClient.getSimplifiedObjectMeta(bucketName, fullKey)).thenReturn(meta);
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(new ObjectListing());
+			when(ossClient.doesObjectExist(bucketName, shadowKey)).thenReturn(true);
+
+			OSSObject shadowObj = new OSSObject();
+			shadowObj.setObjectContent(new ByteArrayInputStream("Cached Doc Content".getBytes(StandardCharsets.UTF_8)));
+			when(ossClient.getObject(bucketName, shadowKey)).thenReturn(shadowObj);
+
+			String text2 = storage.readDocument(path);
+			assertThat(text2).isEqualTo("Cached Doc Content");
+
+			verify(ossClient, never()).getObject(bucketName, fullKey);
+		}
 	}
 }

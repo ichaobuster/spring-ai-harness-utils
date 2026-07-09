@@ -51,7 +51,7 @@ class QuotaManagerTest {
 		long used = quotaManager.getUsedBytes(storage);
 
 		assertThat(used).isEqualTo(456L);
-		verify(storage).calculateTotalSize(List.of(".snapshots/", ".storage"));
+		verify(storage).calculateTotalSize(List.of(".snapshots/", ".shadow/", ".storage"));
 		verify(storage).writeString(eq(".storage"), contains("usedBytes=456"));
 	}
 
@@ -84,7 +84,7 @@ class QuotaManagerTest {
 		long used = quotaManager.getUsedBytes(storage);
 
 		assertThat(used).isEqualTo(789L);
-		verify(storage).calculateTotalSize(List.of(".snapshots/", ".storage"));
+		verify(storage).calculateTotalSize(List.of(".snapshots/", ".shadow/", ".storage"));
 		verify(storage).writeString(eq(".storage"), contains("usedBytes=789"));
 	}
 

@@ -37,7 +37,7 @@ public interface StorageProvider {
 	 */
 	Integer MAX_IMAGE_EDGE = 2048;
 
-	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.storage");
+	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.storage", "/.shadow/");
 
 	default char getSeparator() {
 		return File.separatorChar;
@@ -198,7 +198,10 @@ public interface StorageProvider {
 	/**
 	 * Resource information
 	 */
-	record Info(String path, boolean exists, boolean isDirectory, long size, long lastModified) {
+	record Info(String path, boolean exists, boolean isDirectory, long size, long lastModified, String etag) {
+		public Info(String path, boolean exists, boolean isDirectory, long size, long lastModified) {
+			this(path, exists, isDirectory, size, lastModified, null);
+		}
 	}
 
 	/**

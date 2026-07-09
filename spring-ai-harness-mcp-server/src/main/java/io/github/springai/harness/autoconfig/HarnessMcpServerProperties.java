@@ -90,6 +90,11 @@ public class HarnessMcpServerProperties {
 		 * 是否将 .trash/ 纳入容量计算，默认纳入
 		 */
 		private boolean includeTrash = true;
+
+		/**
+		 * 是否将 .shadow/ 影子缓存纳入容量计算，默认不纳入
+		 */
+		private boolean includeShadowCache = false;
 	}
 
 }

@@ -39,6 +39,9 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 		if (!quotaManager.isSnapshotsIncluded() && cleanPath.startsWith(".snapshots/")) {
 			return true;
 		}
+		if (!quotaManager.isShadowCacheIncluded() && cleanPath.startsWith(".shadow/")) {
+			return true;
+		}
 		// 元文件本身不计入容量
 		if (cleanPath.equals(quotaManager.getMetaFile())) {
 			return true;

@@ -112,7 +112,10 @@ public final class FileContentProcessor {
 
 		StringBuilder sb = new StringBuilder();
 		for (int i = start - 1; i < end && i < totalPages; i++) {
-			sb.append(docs.get(i).getText()).append("\n");
+			sb.append(docs.get(i).getText());
+			if (i < end - 1 && i < totalPages - 1) {
+				sb.append("\f");
+			}
 		}
 		return sb.toString().trim();
 	}

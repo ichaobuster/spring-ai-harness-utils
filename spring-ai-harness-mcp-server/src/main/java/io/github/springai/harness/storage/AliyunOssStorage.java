@@ -105,7 +105,8 @@ public class AliyunOssStorage implements StorageProvider {
 		for (OSSObjectSummary summary : listResult.getObjectSummaries()) {
 			String name = summary.getKey().substring(keyPrefix.length());
 			if (StringUtils.hasText(name)) {
-				details.add(new Info(name, true, false, summary.getSize(), summary.getLastModified().getTime()));
+				String etag = summary.getETag() != null ? summary.getETag().replace("\"", "") : null;
+				details.add(new Info(name, true, false, summary.getSize(), summary.getLastModified().getTime(), etag));
 			}
 		}
 
@@ -462,13 +463,14 @@ public class AliyunOssStorage implements StorageProvider {
 	@Override
 	public Info getInfo(String path) throws IOException {
 		if (isDirectory(path)) {
-			return new Info(path, true, true, 0, 0);
+			return new Info(path, true, true, 0, 0, null);
 		}
 		ObjectMetadata objectMetadata = this.ossClient.getObjectMetadata(this.bucketName, getFullKey(path));
 		if (objectMetadata == null || !exists(path)) {
-			return new Info(path, false, false, 0, 0);
+			return new Info(path, false, false, 0, 0, null);
 		}
-		return new Info(path, true, false, objectMetadata.getContentLength(), objectMetadata.getLastModified().getTime());
+		String etag = objectMetadata.getETag() != null ? objectMetadata.getETag().replace("\"", "") : null;
+		return new Info(path, true, false, objectMetadata.getContentLength(), objectMetadata.getLastModified().getTime(), etag);
 	}
 
 	private String getFullKey(String path) {
@@ -623,11 +625,24 @@ public class AliyunOssStorage implements StorageProvider {
 			throw new FileNotFoundException("File not found or is a directory: " + path);
 		}
 
+		String etag = getETag(path);
+		String shadowKey = getShadowKey(path, etag);
+
+		String cachedText = readShadowCache(shadowKey);
+		if (cachedText != null) {
+			return applyPageRange(cachedText, startPage, endPage);
+		}
+
 		String fullKey = getFullKey(path);
+		String fullText;
 		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, fullKey);
 			 InputStream is = ossObject.getObjectContent()) {
-			return FileContentProcessor.processPdfStream(is, startPage, endPage);
+			fullText = FileContentProcessor.processPdfStream(is, null, null);
 		}
+
+		writeShadowCache(shadowKey, fullText);
+
+		return applyPageRange(fullText, startPage, endPage);
 	}
 
 	@Override
@@ -641,11 +656,93 @@ public class AliyunOssStorage implements StorageProvider {
 			throw new FileNotFoundException("File not found or is a directory: " + path);
 		}
 
+		String etag = getETag(path);
+		String shadowKey = getShadowKey(path, etag);
+
+		String cachedText = readShadowCache(shadowKey);
+		if (cachedText != null) {
+			return cachedText;
+		}
+
 		String fullKey = getFullKey(path);
+		String fullText;
 		try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, fullKey);
 			 InputStream is = ossObject.getObjectContent()) {
-			return FileContentProcessor.processDocumentStream(is);
+			fullText = FileContentProcessor.processDocumentStream(is);
 		}
+
+		writeShadowCache(shadowKey, fullText);
+
+		return fullText;
+	}
+
+	private String getETag(String path) {
+		try {
+			SimplifiedObjectMeta meta = this.ossClient.getSimplifiedObjectMeta(this.bucketName, getFullKey(path));
+			String etag = meta.getETag();
+			return etag != null ? etag.replace("\"", "") : null;
+		} catch (Exception e) {
+			throw new RuntimeException("获取文件ETag失败: " + path, e);
+		}
+	}
+
+	private String getShadowKey(String path, String etag) {
+		if (path.startsWith("/")) {
+			throw new SecurityException("Absolute paths are not allowed: '" + path + "'");
+		}
+		String cleanPath = path;
+		if (cleanPath.startsWith("./")) {
+			cleanPath = cleanPath.substring(2);
+		}
+		return this.prefix + ".shadow/" + cleanPath + "." + etag + ".txt";
+	}
+
+	private String readShadowCache(String shadowKey) {
+		try {
+			if (this.ossClient.doesObjectExist(this.bucketName, shadowKey)) {
+				try (OSSObject ossObject = this.ossClient.getObject(this.bucketName, shadowKey);
+					 InputStream is = ossObject.getObjectContent()) {
+					return FileContentProcessor.streamToString(is);
+				}
+			}
+		} catch (Exception e) {
+			// Ignore read cache failure and fallback to direct parsing
+		}
+		return null;
+	}
+
+	private void writeShadowCache(String shadowKey, String content) {
+		try {
+			byte[] bytes = (content != null ? content : "").getBytes(StandardCharsets.UTF_8);
+			try (InputStream is = new ByteArrayInputStream(bytes)) {
+				this.ossClient.putObject(this.bucketName, shadowKey, is);
+			}
+		} catch (Exception e) {
+			// Ignore write cache failure
+		}
+	}
+
+	private String applyPageRange(String text, Integer startPage, Integer endPage) {
+		if (!StringUtils.hasText(text)) {
+			return "";
+		}
+		String[] pages = text.split("\f", -1);
+		int totalPages = pages.length;
+		int start = (startPage != null) ? Math.max(1, startPage) : 1;
+		int end = (endPage != null) ? Math.min(totalPages, endPage) : totalPages;
+
+		if (start > totalPages || start > end) {
+			return "";
+		}
+
+		StringBuilder sb = new StringBuilder();
+		for (int i = start - 1; i < end && i < totalPages; i++) {
+			sb.append(pages[i]);
+			if (i < end - 1) {
+				sb.append("\n");
+			}
+		}
+		return sb.toString().trim();
 	}
 
 	@Override
