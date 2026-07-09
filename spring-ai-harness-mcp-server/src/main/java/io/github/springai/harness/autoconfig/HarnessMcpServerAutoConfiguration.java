@@ -11,6 +11,7 @@ import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.snapshot.ObservedSnapshotProvider;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
 import io.github.springai.harness.storage.StorageProviderFactory;
+import io.github.springai.harness.storage.QuotaManager;
 import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
@@ -42,12 +43,19 @@ public class HarnessMcpServerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
+	public QuotaManager quotaManager(HarnessMcpServerProperties properties) {
+		return new QuotaManager(properties.getQuota());
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
 	public StorageProviderFactory storageProviderFactory(
 			OSS ossClient,
 			HarnessMcpServerProperties properties,
 			AuthenticationProvider authenticationProvider,
+			QuotaManager quotaManager,
 			ObjectProvider<ObservationRegistry> observationRegistryProvider) {
-		return new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, observationRegistryProvider);
+		return new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, quotaManager, observationRegistryProvider);
 	}
 
 	@Bean

@@ -65,6 +65,7 @@ class FileSystemToolsTest {
 		properties = new HarnessMcpServerProperties();
 		properties.setOssBucket("test-bucket");
 		properties.setOssPrefix("harness/");
+		properties.getQuota().setEnabled(false);
 
 		HeaderAuthenticationProvider authProvider = new HeaderAuthenticationProvider();
 		DefaultStorageProviderFactory factory = new DefaultStorageProviderFactory(ossClient, properties, authProvider);

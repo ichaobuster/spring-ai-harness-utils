@@ -48,10 +48,23 @@ class DefaultStorageProviderFactoryTest {
 		properties = new HarnessMcpServerProperties();
 		properties.setOssBucket("test-bucket");
 		properties.setOssPrefix("mcp/workspaces/");
+		properties.getQuota().setEnabled(false);
 
 		factory = new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, observationRegistryProvider);
 
 		transportContext = McpTransportContext.create(Map.of(McpTransportContext.KEY, serverRequest));
+	}
+
+	@Test
+	@DisplayName("Should return QuotaEnforcedStorageProvider when quota is enabled")
+	void shouldReturnQuotaEnforcedStorageWhenQuotaEnabled() {
+		properties.getQuota().setEnabled(true);
+		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
+		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
+
+		StorageProvider provider = factory.getStorageProvider(transportContext);
+
+		assertThat(provider).isInstanceOf(QuotaEnforcedStorageProvider.class);
 	}
 
 	@Test

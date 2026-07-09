@@ -287,4 +287,15 @@ class ObservedStorageProviderTest {
 		assertThat(startedObservations).contains("mcp.storage.readDocument");
 		verify(delegate).readDocument("doc.docx");
 	}
+
+	@Test
+	@DisplayName("Should delegate calculateTotalSize to delegate")
+	void shouldDelegateCalculateTotalSize() throws IOException {
+		when(delegate.calculateTotalSize(List.of("exclude"))).thenReturn(500L);
+
+		long result = observedStorageProvider.calculateTotalSize(List.of("exclude"));
+
+		assertThat(result).isEqualTo(500L);
+		verify(delegate).calculateTotalSize(List.of("exclude"));
+	}
 }

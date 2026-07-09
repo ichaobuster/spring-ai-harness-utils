@@ -647,4 +647,45 @@ public class AliyunOssStorage implements StorageProvider {
 			return FileContentProcessor.processDocumentStream(is);
 		}
 	}
+
+	@Override
+	public long calculateTotalSize(List<String> excludePrefixes) throws IOException {
+		long totalSize = 0;
+		String nextMarker = null;
+		ObjectListing listResult;
+		do {
+			ListObjectsRequest listObjectsRequest = new ListObjectsRequest(this.bucketName)
+					.withPrefix(this.prefix)
+					.withMarker(nextMarker);
+			listResult = this.ossClient.listObjects(listObjectsRequest);
+			for (OSSObjectSummary summary : listResult.getObjectSummaries()) {
+				String key = summary.getKey();
+				if (key.endsWith("/")) {
+					continue;
+				}
+				String relativePath = key.substring(this.prefix.length());
+				if (!StringUtils.hasText(relativePath)) {
+					continue;
+				}
+
+				boolean excluded = false;
+				if (excludePrefixes != null) {
+					for (String prefixStr : excludePrefixes) {
+						String pathToCheck = relativePath.endsWith("/") ? relativePath : relativePath + "/";
+						if (pathToCheck.startsWith(prefixStr)) {
+							excluded = true;
+							break;
+						}
+					}
+				}
+				if (excluded) {
+					continue;
+				}
+				totalSize += summary.getSize();
+			}
+			nextMarker = listResult.getNextMarker();
+		} while (listResult.isTruncated());
+
+		return totalSize;
+	}
 }

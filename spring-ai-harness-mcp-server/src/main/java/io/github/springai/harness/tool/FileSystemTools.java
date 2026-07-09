@@ -4,6 +4,7 @@ import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
+import io.github.springai.harness.storage.QuotaExceededException;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
@@ -161,6 +162,7 @@ public class FileSystemTools {
 		- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 		- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 		- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+		- This tool will fail if the workspace storage quota limit is exceeded. If this happens, you must delete unnecessary files to free up space.
 		""")
 	public String write(
 			McpTransportContext context,
@@ -186,6 +188,8 @@ public class FileSystemTools {
 				return String.format("Successfully created file: %s (%d bytes)", filePath, content.length());
 			}
 
+		} catch (QuotaExceededException e) {
+			return "Error: Storage quota exceeded. " + e.getMessage();
 		} catch (IOException e) {
 			return "Error writing file: " + e.getMessage();
 		} catch (Exception e) {
@@ -204,6 +208,7 @@ public class FileSystemTools {
 		- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 		- The edit will FAIL if `oldString` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`.
 		- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
+		- This tool will fail if the workspace storage quota limit is exceeded. If this happens, you must delete unnecessary files to free up space.
 		""")
 	public String edit(
 			McpTransportContext context,
@@ -267,8 +272,12 @@ public class FileSystemTools {
 					"The file %s has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n%s",
 					filePath, snippet);
 
+		} catch (QuotaExceededException e) {
+			return "Error: Storage quota exceeded. " + e.getMessage();
 		} catch (IOException e) {
 			return "Error editing file: " + e.getMessage();
+		} catch (Exception e) {
+			return "Error: " + e.getMessage();
 		}
 	}
 

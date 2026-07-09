@@ -3,6 +3,8 @@ package io.github.springai.harness.autoconfig;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
  * Configuration properties for Spring AI Harness MCP Server.
  */
@@ -37,6 +39,8 @@ public class HarnessMcpServerProperties {
 
 	private ObservabilityProperties observability = new ObservabilityProperties();
 
+	private QuotaProperties quota = new QuotaProperties();
+
 	@Data
 	public static class ObservabilityProperties {
 		/**
@@ -53,6 +57,39 @@ public class HarnessMcpServerProperties {
 		 * Tracing sampling probability.
 		 */
 		private double probability = 1.0;
+	}
+
+	@Data
+	public static class QuotaProperties {
+		/**
+		 * 是否启用工作空间容量限制
+		 */
+		private boolean enabled = true;
+
+		/**
+		 * 每个 workspace 的容量上限（字节），默认 1GB (1073741824 bytes)
+		 */
+		private long maxBytes = 1073741824L;
+
+		/**
+		 * 容量元文件名，默认 .storage
+		 */
+		private String metaFile = ".storage";
+
+		/**
+		 * 容量全量重计算间隔，默认 24h
+		 */
+		private Duration recalculationInterval = Duration.ofHours(24);
+
+		/**
+		 * 是否将 .snapshots/ 纳入容量计算，默认不纳入
+		 */
+		private boolean includeSnapshots = false;
+
+		/**
+		 * 是否将 .trash/ 纳入容量计算，默认纳入
+		 */
+		private boolean includeTrash = true;
 	}
 
 }

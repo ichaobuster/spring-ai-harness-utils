@@ -37,7 +37,7 @@ public interface StorageProvider {
 	 */
 	Integer MAX_IMAGE_EDGE = 2048;
 
-	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/");
+	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.storage");
 
 	default char getSeparator() {
 		return File.separatorChar;
@@ -45,6 +45,52 @@ public interface StorageProvider {
 
 	default boolean isIgnoredPath(String path) {
 		return IGNORED_PATH_PATTERN.stream().anyMatch(ignoredPathPattern -> path.contains(ignoredPathPattern));
+	}
+
+	/**
+	 * 计算当前存储空间下所有文件的总大小（字节）。
+	 *
+	 * @param excludePrefixes 需要排除的路径前缀列表（如 ".snapshots/", ".trash/"）
+	 * @return 总字节数
+	 * @throws IOException 如果存储操作失败
+	 */
+	default long calculateTotalSize(List<String> excludePrefixes) throws IOException {
+		return calculateTotalSizeRecursive("", excludePrefixes);
+	}
+
+	private long calculateTotalSizeRecursive(String currentDir, List<String> excludePrefixes) throws IOException {
+		long total = 0;
+		List<Info> items = listDirectory(currentDir);
+		for (Info item : items) {
+			String relativePath = currentDir.isEmpty() ? item.path() : currentDir + "/" + item.path();
+
+			// 规范化路径分隔符
+			String cleanPath = relativePath.replaceAll("/{2,}", "/");
+			if (cleanPath.startsWith("/")) {
+				cleanPath = cleanPath.substring(1);
+			}
+
+			boolean excluded = false;
+			if (excludePrefixes != null) {
+				for (String prefix : excludePrefixes) {
+					String pathToCheck = cleanPath.endsWith("/") ? cleanPath : cleanPath + "/";
+					if (pathToCheck.startsWith(prefix)) {
+						excluded = true;
+						break;
+					}
+				}
+			}
+			if (excluded) {
+				continue;
+			}
+
+			if (item.isDirectory()) {
+				total += calculateTotalSizeRecursive(cleanPath, excludePrefixes);
+			} else {
+				total += item.size();
+			}
+		}
+		return total;
 	}
 
 	/**

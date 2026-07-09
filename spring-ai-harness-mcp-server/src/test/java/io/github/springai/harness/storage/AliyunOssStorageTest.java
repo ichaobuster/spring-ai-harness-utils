@@ -1003,4 +1003,58 @@ class AliyunOssStorageTest {
 		}
 	}
 
+	@Test
+	@DisplayName("calculateTotalSize lists objects recursively and counts total size with exclusions")
+	void calculateTotalSize() throws IOException {
+		ObjectListing listing = new ObjectListing();
+
+		OSSObjectSummary summary1 = new OSSObjectSummary();
+		summary1.setKey(prefix + "file1.txt");
+		summary1.setSize(100L);
+
+		OSSObjectSummary summary2 = new OSSObjectSummary();
+		summary2.setKey(prefix + "dir/file2.txt");
+		summary2.setSize(200L);
+
+		OSSObjectSummary summary3 = new OSSObjectSummary();
+		summary3.setKey(prefix + ".snapshots/snap1/file1.txt");
+		summary3.setSize(300L);
+
+		listing.setObjectSummaries(List.of(summary1, summary2, summary3));
+		listing.setTruncated(false);
+
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(listing);
+
+		long size = storage.calculateTotalSize(List.of(".snapshots/"));
+
+		assertThat(size).isEqualTo(300L); // 100 + 200 = 300
+	}
+
+	@Test
+	@DisplayName("calculateTotalSize handles pagination when listings are truncated")
+	void calculateTotalSizePagination() throws IOException {
+		ObjectListing page1 = new ObjectListing();
+		OSSObjectSummary s1 = new OSSObjectSummary();
+		s1.setKey(prefix + "file1.txt");
+		s1.setSize(100L);
+		page1.setObjectSummaries(List.of(s1));
+		page1.setTruncated(true);
+		page1.setNextMarker("marker-1");
+
+		ObjectListing page2 = new ObjectListing();
+		OSSObjectSummary s2 = new OSSObjectSummary();
+		s2.setKey(prefix + "file2.txt");
+		s2.setSize(150L);
+		page2.setObjectSummaries(List.of(s2));
+		page2.setTruncated(false);
+
+		when(ossClient.listObjects(any(ListObjectsRequest.class)))
+				.thenReturn(page1)
+				.thenReturn(page2);
+
+		long size = storage.calculateTotalSize(null);
+
+		assertThat(size).isEqualTo(250L); // 100 + 150
+		verify(ossClient, times(2)).listObjects(any(ListObjectsRequest.class));
+	}
 }

@@ -196,4 +196,9 @@ public class ObservedStorageProvider implements StorageProvider {
 	public String readDocument(String path) throws IOException {
 		return observe("readDocument", path, () -> delegate.readDocument(path));
 	}
+
+	@Override
+	public long calculateTotalSize(List<String> excludePrefixes) throws IOException {
+		return delegate.calculateTotalSize(excludePrefixes);
+	}
 }

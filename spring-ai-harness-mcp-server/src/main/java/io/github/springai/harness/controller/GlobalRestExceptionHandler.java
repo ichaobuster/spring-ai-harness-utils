@@ -1,6 +1,7 @@
 package io.github.springai.harness.controller;
 
 import io.github.springai.harness.auth.AuthenticationException;
+import io.github.springai.harness.storage.QuotaExceededException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,16 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalRestExceptionHandler {
+
+	/**
+	 * 处理容量超限相关的异常，返回 413 Payload Too Large。
+	 */
+	@ExceptionHandler(QuotaExceededException.class)
+	public ResponseEntity<Map<String, String>> handleQuotaExceededException(HttpServletRequest request, QuotaExceededException e) {
+		log.error("工作空间容量超限 [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage(), e);
+		return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+				.body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Workspace quota exceeded"));
+	}
 
 	/**
 	 * 处理认证相关的异常，返回 401 Unauthorized。
