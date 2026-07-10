@@ -133,6 +133,13 @@ class AliyunOssStorageTest {
 	}
 
 	@Test
+	@DisplayName("createDirectory() puts a 0-byte directory object")
+	void createDirectory() throws IOException {
+		storage.createDirectory("new-dir");
+		verify(ossClient).putObject(eq(bucketName), eq(prefix + "new-dir/"), any(ByteArrayInputStream.class));
+	}
+
+	@Test
 	@DisplayName("listDirectory() lists objects with prefix")
 	void listDirectory() throws IOException {
 		ObjectListing listing = new ObjectListing();

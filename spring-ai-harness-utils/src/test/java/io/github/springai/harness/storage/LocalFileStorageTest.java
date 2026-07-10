@@ -121,6 +121,14 @@ class LocalFileStorageTest {
 	}
 
 	@Test
+	@DisplayName("createDirectory() creates a directory successfully")
+	void createDirectory() throws IOException {
+		storage.createDirectory("newdir");
+		assertThat(storage.isDirectory("newdir")).isTrue();
+		assertThat(Files.isDirectory(tempDir.resolve("newdir"))).isTrue();
+	}
+
+	@Test
 	@DisplayName("readImage() returns small PNG as original base64 data URL")
 	void readImageSmallPng() throws IOException {
 		byte[] pngBytes = createImageBytes(16, 12, "png");

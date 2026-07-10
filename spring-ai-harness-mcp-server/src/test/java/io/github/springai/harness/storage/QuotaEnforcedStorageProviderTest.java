@@ -46,6 +46,16 @@ class QuotaEnforcedStorageProviderTest {
 	}
 
 	@Test
+	@DisplayName("Should delegate createDirectory without quota checks")
+	void shouldDelegateCreateDirectory() throws IOException {
+		provider.createDirectory("new-dir");
+
+		verify(delegate).createDirectory("new-dir");
+		verify(quotaManager, never()).checkQuota(any(), anyLong());
+		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
+	}
+
+	@Test
 	@DisplayName("Should check quota and update bytes when writing new file")
 	void shouldCheckQuotaForNewFile() throws IOException {
 		when(delegate.exists("new.txt")).thenReturn(false);

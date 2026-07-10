@@ -74,6 +74,15 @@ class ObservedStorageProviderTest {
 	}
 
 	@Test
+	@DisplayName("Should trace createDirectory and delegate")
+	void shouldTraceCreateDirectory() throws IOException {
+		observedStorageProvider.createDirectory("foo-dir");
+
+		assertThat(startedObservations).contains("mcp.storage.createDirectory");
+		verify(delegate).createDirectory("foo-dir");
+	}
+
+	@Test
 	@DisplayName("Should trace readString and delegate")
 	void shouldTraceReadString() throws IOException {
 		when(delegate.readString("foo.txt")).thenReturn("hello");
