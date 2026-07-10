@@ -1,6 +1,10 @@
 package io.github.springai.harness.storage;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.ListObjectsRequest;
+import com.aliyun.oss.model.OSSObjectSummary;
+import com.aliyun.oss.model.ObjectListing;
 import io.github.springai.harness.auth.AuthenticationProvider;
 import io.github.springai.harness.auth.WorkspaceIdentity;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
@@ -15,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.servlet.function.ServerRequest;
 
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,8 +58,8 @@ class DefaultStorageProviderFactoryTest {
 		properties.setOssPrefix("mcp/workspaces/");
 		properties.getQuota().setEnabled(false);
 
-		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
-		lenient().when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		ObjectListing mockListing = mock(ObjectListing.class);
+		lenient().when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(mockListing);
 		lenient().when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
 
 		factory = new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, observationRegistryProvider);
@@ -127,14 +132,14 @@ class DefaultStorageProviderFactoryTest {
 		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
 		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
 
-		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
-		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		ObjectListing mockListing = mock(ObjectListing.class);
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(mockListing);
 		when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
 
 		StorageProvider provider = factory.getStorageProvider(transportContext);
 
 		assertThat(provider).isNotNull();
-		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(java.io.InputStream.class));
+		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(InputStream.class));
 	}
 
 	@Test
@@ -143,15 +148,15 @@ class DefaultStorageProviderFactoryTest {
 		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
 		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
 
-		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
-		com.aliyun.oss.model.OSSObjectSummary mockSummary = mock(com.aliyun.oss.model.OSSObjectSummary.class);
-		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		ObjectListing mockListing = mock(ObjectListing.class);
+		OSSObjectSummary mockSummary = mock(OSSObjectSummary.class);
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(mockListing);
 		when(mockListing.getObjectSummaries()).thenReturn(List.of(mockSummary));
 
 		StorageProvider provider = factory.getStorageProvider(transportContext);
 
 		assertThat(provider).isNotNull();
-		verify(ossClient, never()).putObject(any(), any(), any(java.io.InputStream.class));
+		verify(ossClient, never()).putObject(any(), any(), any(InputStream.class));
 	}
 
 	@Test
@@ -160,16 +165,16 @@ class DefaultStorageProviderFactoryTest {
 		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
 		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
 
-		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
-		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		ObjectListing mockListing = mock(ObjectListing.class);
+		when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(mockListing);
 		when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
 
-		when(ossClient.putObject(any(), any(), any(java.io.InputStream.class)))
-				.thenThrow(new com.aliyun.oss.OSSException("OSS error"));
+		when(ossClient.putObject(any(), any(), any(InputStream.class)))
+				.thenThrow(new OSSException("OSS error"));
 
 		StorageProvider provider = factory.getStorageProvider(transportContext);
 
 		assertThat(provider).isNotNull();
-		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(java.io.InputStream.class));
+		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(InputStream.class));
 	}
 }

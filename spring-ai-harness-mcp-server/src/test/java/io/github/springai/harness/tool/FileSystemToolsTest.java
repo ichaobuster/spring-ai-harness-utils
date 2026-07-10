@@ -1,6 +1,8 @@
 package io.github.springai.harness.tool;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.ListObjectsRequest;
+import com.aliyun.oss.model.ObjectListing;
 import io.github.springai.harness.auth.AuthenticationException;
 import io.github.springai.harness.auth.HeaderAuthenticationProvider;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
@@ -67,8 +69,8 @@ class FileSystemToolsTest {
 		properties.setOssPrefix("harness/");
 		properties.getQuota().setEnabled(false);
 
-		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
-		lenient().when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		ObjectListing mockListing = mock(ObjectListing.class);
+		lenient().when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(mockListing);
 		lenient().when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
 
 		HeaderAuthenticationProvider authProvider = new HeaderAuthenticationProvider();
