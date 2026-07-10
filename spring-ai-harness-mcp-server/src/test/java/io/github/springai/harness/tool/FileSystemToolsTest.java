@@ -67,6 +67,10 @@ class FileSystemToolsTest {
 		properties.setOssPrefix("harness/");
 		properties.getQuota().setEnabled(false);
 
+		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
+		lenient().when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		lenient().when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
+
 		HeaderAuthenticationProvider authProvider = new HeaderAuthenticationProvider();
 		DefaultStorageProviderFactory factory = new DefaultStorageProviderFactory(ossClient, properties, authProvider);
 

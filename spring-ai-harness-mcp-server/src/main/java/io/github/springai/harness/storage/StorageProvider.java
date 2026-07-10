@@ -253,4 +253,12 @@ public interface StorageProvider {
 	 * Reads an Office document (.docx, .xlsx, .pptx) and extracts its text.
 	 */
 	String readDocument(String path) throws IOException;
+
+	/**
+	 * 创建目录。
+	 *
+	 * @param path 相对目录路径
+	 * @throws IOException 如果操作失败
+	 */
+	void createDirectory(String path) throws IOException;
 }

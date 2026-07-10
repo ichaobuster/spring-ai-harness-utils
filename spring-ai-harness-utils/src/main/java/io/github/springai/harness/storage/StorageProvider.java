@@ -303,4 +303,12 @@ public interface StorageProvider {
 		content
 
 	}
+
+	/**
+	 * 创建目录。
+	 *
+	 * @param path 相对目录路径
+	 * @throws IOException 如果操作失败
+	 */
+	void createDirectory(String path) throws IOException;
 }

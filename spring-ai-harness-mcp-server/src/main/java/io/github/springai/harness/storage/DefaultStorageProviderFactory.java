@@ -6,6 +6,7 @@ import io.github.springai.harness.auth.WorkspaceIdentity;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.servlet.function.ServerRequest;
 
@@ -15,6 +16,7 @@ import org.springframework.web.servlet.function.ServerRequest;
  *
  * @author ichaobuster
  */
+@Slf4j
 public class DefaultStorageProviderFactory implements StorageProviderFactory {
 
 	private final OSS ossClient;
@@ -45,6 +47,16 @@ public class DefaultStorageProviderFactory implements StorageProviderFactory {
 		WorkspaceIdentity identity = this.authenticationProvider.authenticate(serverRequest);
 		String workspaceKey = identity.getWorkspacePath(this.properties.getOssPrefix());
 		StorageProvider baseStorage = new AliyunOssStorage(this.ossClient, this.properties.getOssBucket(), workspaceKey);
+
+		// 检查工作空间根目录是否存在，若不存在则创建之，以防访问根目录报错
+		if (!baseStorage.exists("")) {
+			try {
+				baseStorage.createDirectory("");
+			}
+			catch (Exception e) {
+				log.warn("初始化工作空间根目录失败: {}", e.getMessage());
+			}
+		}
 
 		if (this.properties.getQuota().isEnabled()) {
 			baseStorage = new QuotaEnforcedStorageProvider(baseStorage, this.quotaManager);

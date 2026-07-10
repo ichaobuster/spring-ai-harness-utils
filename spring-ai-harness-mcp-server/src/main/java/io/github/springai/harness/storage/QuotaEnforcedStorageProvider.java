@@ -217,4 +217,9 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 	public long calculateTotalSize(List<String> excludePrefixes) throws IOException {
 		return delegate.calculateTotalSize(excludePrefixes);
 	}
+
+	@Override
+	public void createDirectory(String path) throws IOException {
+		delegate.createDirectory(path);
+	}
 }

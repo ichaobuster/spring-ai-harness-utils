@@ -408,6 +408,12 @@ public class LocalFileStorage implements StorageProvider {
 
 	}
 
+	@Override
+	public void createDirectory(String path) throws IOException {
+		Path target = resolveSafePath(path);
+		Files.createDirectories(target);
+	}
+
 	public static Builder builder() {
 		return new Builder();
 	}

@@ -15,9 +15,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.servlet.function.ServerRequest;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @DisplayName("DefaultStorageProviderFactory Unit Tests")
@@ -49,6 +52,10 @@ class DefaultStorageProviderFactoryTest {
 		properties.setOssBucket("test-bucket");
 		properties.setOssPrefix("mcp/workspaces/");
 		properties.getQuota().setEnabled(false);
+
+		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
+		lenient().when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		lenient().when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
 
 		factory = new DefaultStorageProviderFactory(ossClient, properties, authenticationProvider, observationRegistryProvider);
 
@@ -112,5 +119,57 @@ class DefaultStorageProviderFactoryTest {
 		StorageProvider provider = factory.getStorageProvider(transportContext);
 
 		assertThat(provider).isInstanceOf(ObservedStorageProvider.class);
+	}
+
+	@Test
+	@DisplayName("Should create directory when root directory does not exist")
+	void shouldCreateDirectoryWhenRootDoesNotExist() {
+		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
+		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
+
+		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
+		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
+
+		StorageProvider provider = factory.getStorageProvider(transportContext);
+
+		assertThat(provider).isNotNull();
+		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(java.io.InputStream.class));
+	}
+
+	@Test
+	@DisplayName("Should not create directory when root directory already exists")
+	void shouldNotCreateDirectoryWhenRootExists() {
+		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
+		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
+
+		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
+		com.aliyun.oss.model.OSSObjectSummary mockSummary = mock(com.aliyun.oss.model.OSSObjectSummary.class);
+		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		when(mockListing.getObjectSummaries()).thenReturn(List.of(mockSummary));
+
+		StorageProvider provider = factory.getStorageProvider(transportContext);
+
+		assertThat(provider).isNotNull();
+		verify(ossClient, never()).putObject(any(), any(), any(java.io.InputStream.class));
+	}
+
+	@Test
+	@DisplayName("Should swallow exception when directory creation fails")
+	void shouldSwallowExceptionWhenDirectoryCreationFails() {
+		WorkspaceIdentity identity = new WorkspaceIdentity("sys", "agent", "user");
+		when(authenticationProvider.authenticate(serverRequest)).thenReturn(identity);
+
+		com.aliyun.oss.model.ObjectListing mockListing = mock(com.aliyun.oss.model.ObjectListing.class);
+		when(ossClient.listObjects(any(com.aliyun.oss.model.ListObjectsRequest.class))).thenReturn(mockListing);
+		when(mockListing.getObjectSummaries()).thenReturn(Collections.emptyList());
+
+		when(ossClient.putObject(any(), any(), any(java.io.InputStream.class)))
+				.thenThrow(new com.aliyun.oss.OSSException("OSS error"));
+
+		StorageProvider provider = factory.getStorageProvider(transportContext);
+
+		assertThat(provider).isNotNull();
+		verify(ossClient).putObject(eq("test-bucket"), eq("mcp/workspaces/sys-agent-user/"), any(java.io.InputStream.class));
 	}
 }

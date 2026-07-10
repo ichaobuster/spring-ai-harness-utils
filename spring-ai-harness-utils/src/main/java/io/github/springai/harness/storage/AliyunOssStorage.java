@@ -468,4 +468,15 @@ public class AliyunOssStorage implements StorageProvider {
 		return this.prefix + path;
 	}
 
+	@Override
+	public void createDirectory(String path) throws IOException {
+		// 规范化目录路径，确保以 '/' 结尾且不以 '/' 开头
+		String key = getFullKey(path);
+		if (StringUtils.hasText(key) && !key.endsWith("/")) {
+			key += "/";
+		}
+		try (InputStream is = new ByteArrayInputStream(new byte[0])) {
+			this.ossClient.putObject(this.bucketName, key, is);
+		}
+	}
 }
