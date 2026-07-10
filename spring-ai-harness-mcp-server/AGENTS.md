@@ -161,6 +161,8 @@ spring-ai-harness-mcp-server/
     │   │   │   └── ObservedStorageProvider.java       # Storage observability decorator
     │   │   └── tool/
     │   │       ├── FileSystemTools.java               # MCP file tools (Read/Write/Edit/Glob/Grep/ListDirectory/Trash/ListSnapshots/Rewind)
+    │   │       ├── RelayMcpClientManager.java         # Downstream streamable-http MCP client connection manager & cache
+    │   │       ├── RelayTools.java                    # 26 proxy tools delegating to downstream MCP server
     │   │       └── SkillTools.java                    # MCP Skill tools & resources
     │   └── resources/
     │       └── application.properties                 # Default configuration
@@ -188,6 +190,8 @@ spring-ai-harness-mcp-server/
             │   └── ObservedStorageProviderTest.java
             └── tool/
                 ├── FileSystemToolsTest.java
+                ├── RelayMcpClientManagerTest.java
+                ├── RelayToolsTest.java
                 └── SkillToolsTest.java
 ```
 
@@ -381,6 +385,12 @@ spring.ai.harness.mcp.server.observability.enabled=false
 spring.ai.harness.mcp.server.observability.export-type=otlp
 # Sampling probability: 0.0 ~ 1.0 (default: 1.0)
 spring.ai.harness.mcp.server.observability.probability=1.0
+
+# Relay streamable-http MCP Server Configuration
+spring.ai.harness.mcp.server.relay.enabled=false
+spring.ai.harness.mcp.server.relay.url=http://localhost:8081
+# Map of static headers (e.g., Authorization)
+spring.ai.harness.mcp.server.relay.headers.Authorization=Bearer <downstream-token>
 ```
 
 ---

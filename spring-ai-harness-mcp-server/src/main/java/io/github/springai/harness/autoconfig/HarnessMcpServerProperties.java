@@ -4,6 +4,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Configuration properties for Spring AI Harness MCP Server.
@@ -40,6 +42,8 @@ public class HarnessMcpServerProperties {
 	private ObservabilityProperties observability = new ObservabilityProperties();
 
 	private QuotaProperties quota = new QuotaProperties();
+
+	private RelayProperties relay = new RelayProperties();
 
 	@Data
 	public static class ObservabilityProperties {
@@ -95,6 +99,24 @@ public class HarnessMcpServerProperties {
 		 * 是否将 .shadow/ 影子缓存纳入容量计算，默认不纳入
 		 */
 		private boolean includeShadowCache = false;
+	}
+
+	@Data
+	public static class RelayProperties {
+		/**
+		 * Whether to enable the MCP tools relay/proxy capability.
+		 */
+		private boolean enabled = false;
+
+		/**
+		 * The downstream streamable-http MCP server URL.
+		 */
+		private String url;
+
+		/**
+		 * The static request headers (e.g. Authorization) to pass to the downstream MCP server.
+		 */
+		private Map<String, String> headers = new HashMap<>();
 	}
 
 }

@@ -59,6 +59,12 @@ spring.ai.harness.mcp.server.oss-bucket=<your-bucket-name>
 spring.ai.harness.mcp.server.observability.enabled=false
 # Export type: otlp, none (default: otlp)
 spring.ai.harness.mcp.server.observability.export-type=otlp
+
+# Relay streamable-http MCP Server Configuration
+spring.ai.harness.mcp.server.relay.enabled=false
+spring.ai.harness.mcp.server.relay.url=http://localhost:8081
+# Map of static headers (e.g., Authorization)
+spring.ai.harness.mcp.server.relay.headers.Authorization=Bearer <downstream-token>
 ```
 
 ### 1.3 Backend Coding & Quality Standards
