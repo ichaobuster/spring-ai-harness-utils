@@ -794,7 +794,7 @@ public class AliyunOssStorage implements StorageProvider {
 		String key = getFullKey(path);
 
 		// 校验是否是内部路径
-		validateNotInternalPath(path);
+		validateNotInternalPath(key);
 
 		// 校验文件存在且非目录
 		if (isDirectory(path)) {
@@ -833,17 +833,9 @@ public class AliyunOssStorage implements StorageProvider {
 		if (path == null) {
 			return;
 		}
-		// 规范化路径，去除多余斜杠
-		String cleanPath = path.replaceAll("/{2,}", "/");
-		while (cleanPath.startsWith("./")) {
-			cleanPath = cleanPath.substring(2);
-		}
-		if (cleanPath.startsWith("/")) {
-			cleanPath = cleanPath.substring(1);
-		}
 
-		for (String prefix : INTERNAL_FILE_PREFIXES) {
-			if (cleanPath.startsWith(prefix) || cleanPath.contains("/" + prefix)) {
+		for (String pattern : INTERNAL_PATH_PATTERN) {
+			if (path.contains(pattern)) {
 				throw new SecurityException("Access to internal path is denied: " + path);
 			}
 		}

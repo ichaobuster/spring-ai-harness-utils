@@ -38,8 +38,8 @@ public interface StorageProvider {
 	 */
 	Integer MAX_IMAGE_EDGE = 2048;
 
-	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.storage", "/.shadow/");
-	List<String> INTERNAL_FILE_PREFIXES = List.of(".snapshots/", ".trash/", ".shadow/", ".storage");
+	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.shadow/");
+	List<String> INTERNAL_PATH_PATTERN = List.of("/.snapshots/", "/.trash/", "/.shadow/");
 
 	default char getSeparator() {
 		return File.separatorChar;

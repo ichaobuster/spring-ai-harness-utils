@@ -1,5 +1,6 @@
 package io.github.springai.harness.storage;
 
+import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,16 +16,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Base64;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.Duration;
-import com.aliyun.oss.HttpMethod;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1320,10 +1316,6 @@ class AliyunOssStorageTest {
 					.hasMessageContaining("Access to internal path is denied");
 
 			assertThatThrownBy(() -> storage.createDownloadLink(".shadow/file.txt", Duration.ofMinutes(5)))
-					.isInstanceOf(SecurityException.class)
-					.hasMessageContaining("Access to internal path is denied");
-
-			assertThatThrownBy(() -> storage.createDownloadLink(".storage", Duration.ofMinutes(5)))
 					.isInstanceOf(SecurityException.class)
 					.hasMessageContaining("Access to internal path is denied");
 		}
