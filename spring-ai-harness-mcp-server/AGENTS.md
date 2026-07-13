@@ -153,6 +153,7 @@ spring-ai-harness-mcp-server/
     │   │   │   ├── DefaultSnapshotProvider.java       # .snapshots/-based snapshot provider
     │   │   │   └── ObservedSnapshotProvider.java      # Snapshot observability decorator
     │   │   ├── storage/
+    │   │   │   ├── DownloadLink.java                  # File temporary download link record
     │   │   │   ├── StorageProvider.java               # Storage abstract interface
     │   │   │   ├── StorageProviderFactory.java        # Storage factory abstract interface
     │   │   │   ├── DefaultStorageProviderFactory.java # Default storage factory implementation
@@ -203,7 +204,7 @@ spring-ai-harness-mcp-server/
 
 File: `tool/FileSystemTools.java`
 
-MCP tool entry class providing 9 `@McpTool` methods — the file system and snapshot rollback capabilities available to agents:
+MCP tool entry class providing 10 `@McpTool` methods — the file system and snapshot rollback capabilities available to agents:
 
 | Tool | Method | Description |
 |------|--------|-------------|
@@ -216,6 +217,7 @@ MCP tool entry class providing 9 `@McpTool` methods — the file system and snap
 | `Trash` | `trash(ctx, filePath)` | Safely move files/directories to workspace recycle bin (`.trash/`, auto-triggers pre-write snapshot) |
 | `ListSnapshots` | `listSnapshots(ctx, filePath)` | Query historical snapshot list, filterable by file path |
 | `Rewind` | `rewind(ctx, snapshotId)` | Quickly revert a file to a specific snapshot state |
+| `SendFileToUser` | `sendFileToUser(ctx, filePath, expiresInSeconds)` | Generates a temporary download link (presigned URL) for a file. Default TTL: 1h, Max: 8h. Returns JSON object. |
 
 **Key decoupling design**: `FileSystemTools` does not handle Authorization header parsing or OSS client directly. It injects `StorageProviderFactory` and delegates to `getStorageProvider(McpTransportContext)` to obtain an isolated `StorageProvider` instance for each request identity.
 
@@ -391,6 +393,12 @@ spring.ai.harness.mcp.server.relay.enabled=false
 spring.ai.harness.mcp.server.relay.url=http://localhost:8081
 # Map of static headers (e.g., Authorization)
 spring.ai.harness.mcp.server.relay.headers.Authorization=Bearer <downstream-token>
+
+# Temporary Download URL Configuration
+spring.ai.harness.mcp.server.download.enabled=true
+spring.ai.harness.mcp.server.download.default-ttl=1h
+spring.ai.harness.mcp.server.download.max-ttl=8h
+spring.ai.harness.mcp.server.download.public-endpoint=
 ```
 
 ---

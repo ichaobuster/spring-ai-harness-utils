@@ -45,6 +45,8 @@ public class HarnessMcpServerProperties {
 
 	private RelayProperties relay = new RelayProperties();
 
+	private DownloadProperties download = new DownloadProperties();
+
 	@Data
 	public static class ObservabilityProperties {
 		/**
@@ -117,6 +119,19 @@ public class HarnessMcpServerProperties {
 		 * The static request headers (e.g. Authorization) to pass to the downstream MCP server.
 		 */
 		private Map<String, String> headers = new HashMap<>();
+	}
+
+	@Data
+	public static class DownloadProperties {
+		/**
+		 * 是否启用文件下载链接功能
+		 */
+		private boolean enabled = true;
+
+		/**
+		 * 默认下载链接有效期（默认：1小时）
+		 */
+		private Duration defaultTtl = Duration.ofHours(1);
 	}
 
 }

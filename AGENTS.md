@@ -65,6 +65,12 @@ spring.ai.harness.mcp.server.relay.enabled=false
 spring.ai.harness.mcp.server.relay.url=http://localhost:8081
 # Map of static headers (e.g., Authorization)
 spring.ai.harness.mcp.server.relay.headers.Authorization=Bearer <downstream-token>
+
+# Temporary Download URL Configuration
+spring.ai.harness.mcp.server.download.enabled=true
+spring.ai.harness.mcp.server.download.default-ttl=1h
+spring.ai.harness.mcp.server.download.max-ttl=8h
+spring.ai.harness.mcp.server.download.public-endpoint=
 ```
 
 ### 1.3 Backend Coding & Quality Standards

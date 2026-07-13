@@ -1,30 +1,20 @@
 package io.github.springai.harness.storage;
 
+import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.*;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
-import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
-import org.springframework.ai.reader.tika.TikaDocumentReader;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
-import java.util.Locale;
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 
 import java.io.*;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -796,5 +786,86 @@ public class AliyunOssStorage implements StorageProvider {
 		try (InputStream is = new ByteArrayInputStream(new byte[0])) {
 			this.ossClient.putObject(this.bucketName, key, is);
 		}
+	}
+
+	@Override
+	public DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
+		// getFullKey(path) 会校验是否以 "/" 开头及包含 "../"
+		String key = getFullKey(path);
+
+		// 校验是否是内部路径
+		validateNotInternalPath(path);
+
+		// 校验文件存在且非目录
+		if (isDirectory(path)) {
+			throw new IOException("Cannot create download link for a directory: " + path);
+		}
+		if (!exists(path)) {
+			throw new FileNotFoundException("File not found: " + path);
+		}
+
+		Info info = getInfo(path);
+
+		// 设置过期时间
+		Date expiration = Date.from(Instant.now().plus(ttl));
+
+		// 创建预签名 URL 请求
+		GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(this.bucketName, key);
+		request.setMethod(HttpMethod.GET);
+		request.setExpiration(expiration);
+
+		// 通过 ResponseHeaderOverrides 强制以附件形式下载，并净化文件名，避免浏览器渲染 HTML/PDF
+		ResponseHeaderOverrides overrides = new ResponseHeaderOverrides();
+		String fileName = sanitizeFileName(extractFileName(path));
+		overrides.setContentDisposition("attachment; filename=\"" + fileName + "\"");
+		request.setResponseHeaders(overrides);
+
+		URL url = this.ossClient.generatePresignedUrl(request);
+
+		try {
+			return new DownloadLink(url.toURI(), expiration, fileName, info.size());
+		} catch (Exception e) {
+			throw new IOException("Failed to convert presigned URL to URI", e);
+		}
+	}
+
+	private void validateNotInternalPath(String path) {
+		if (path == null) {
+			return;
+		}
+		// 规范化路径，去除多余斜杠
+		String cleanPath = path.replaceAll("/{2,}", "/");
+		while (cleanPath.startsWith("./")) {
+			cleanPath = cleanPath.substring(2);
+		}
+		if (cleanPath.startsWith("/")) {
+			cleanPath = cleanPath.substring(1);
+		}
+
+		for (String prefix : INTERNAL_FILE_PREFIXES) {
+			if (cleanPath.startsWith(prefix) || cleanPath.contains("/" + prefix)) {
+				throw new SecurityException("Access to internal path is denied: " + path);
+			}
+		}
+	}
+
+	private String extractFileName(String path) {
+		if (path == null || path.isBlank()) {
+			return "file";
+		}
+		int lastSlash = path.lastIndexOf('/');
+		if (lastSlash == -1) {
+			return path;
+		}
+		return path.substring(lastSlash + 1);
+	}
+
+	private String sanitizeFileName(String fileName) {
+		if (fileName == null) {
+			return "file";
+		}
+		// 移除非法字符，以下划线代替
+		String sanitized = fileName.replaceAll("[\\\\/:*?\"<>|\\r\\n]", "_");
+		return sanitized.isBlank() ? "file" : sanitized;
 	}
 }

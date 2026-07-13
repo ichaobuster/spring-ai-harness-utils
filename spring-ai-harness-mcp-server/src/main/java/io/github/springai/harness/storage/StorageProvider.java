@@ -2,6 +2,7 @@ package io.github.springai.harness.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -38,6 +39,7 @@ public interface StorageProvider {
 	Integer MAX_IMAGE_EDGE = 2048;
 
 	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.storage", "/.shadow/");
+	List<String> INTERNAL_FILE_PREFIXES = List.of(".snapshots/", ".trash/", ".shadow/", ".storage");
 
 	default char getSeparator() {
 		return File.separatorChar;
@@ -261,4 +263,16 @@ public interface StorageProvider {
 	 * @throws IOException 如果操作失败
 	 */
 	void createDirectory(String path) throws IOException;
+
+	/**
+	 * Creates a temporary download link (presigned URL) for a file.
+	 *
+	 * @param path relative path of the file
+	 * @param ttl duration of link validity
+	 * @return temporary download link information
+	 * @throws IOException if storage operation fails
+	 */
+	default DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
+		throw new UnsupportedOperationException("This storage implementation does not support generating download links");
+	}
 }

@@ -3,6 +3,7 @@ package io.github.springai.harness.tool;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.ObjectListing;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.springai.harness.auth.AuthenticationException;
 import io.github.springai.harness.auth.HeaderAuthenticationProvider;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
@@ -10,6 +11,7 @@ import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.AliyunOssStorage;
 import io.github.springai.harness.storage.DefaultStorageProviderFactory;
+import io.github.springai.harness.storage.DownloadLink;
 import io.github.springai.harness.storage.StorageProvider;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -24,8 +26,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.function.ServerRequest;
 
 import java.io.IOException;
-import java.util.Base64;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -79,6 +84,8 @@ class FileSystemToolsTest {
 		fileSystemTools = new FileSystemTools();
 		ReflectionTestUtils.setField(fileSystemTools, "storageProviderFactory", factory);
 		ReflectionTestUtils.setField(fileSystemTools, "snapshotProvider", snapshotProvider);
+		ReflectionTestUtils.setField(fileSystemTools, "properties", properties);
+		ReflectionTestUtils.setField(fileSystemTools, "objectMapper", new ObjectMapper());
 
 		spyFileSystemTools = spy(fileSystemTools);
 
@@ -763,6 +770,104 @@ class FileSystemToolsTest {
 			String result = spyFileSystemTools.rewind(context, "snap1");
 
 			assertThat(result).contains("Successfully rewound file 'foo.txt' to snapshot state [snap1].");
+		}
+	}
+
+	@Nested
+	@DisplayName("SendFileToUser Tool Tests")
+	class SendFileToUserToolTests {
+
+		@BeforeEach
+		void setupSpy() {
+			lenient().doReturn(storageProvider).when(spyFileSystemTools).getStorageProvider(any());
+		}
+
+		private String getResponseText(McpSchema.CallToolResult result) {
+			return ((McpSchema.TextContent) result.content().get(0)).text();
+		}
+
+		@Test
+		@DisplayName("Should successfully send file to user with default TTL")
+		void shouldSendFileToUserWithDefaultTtl() throws Exception {
+			String path = "report.xlsx";
+			DownloadLink link = new DownloadLink(new URI("https://mock-download.com/harness/report.xlsx"), Date.from(Instant.now().plus(Duration.ofHours(1))), "report.xlsx", 5000L);
+			when(storageProvider.createDownloadLink(eq(path), eq(Duration.ofHours(1)))).thenReturn(link);
+
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, path, null);
+
+			assertThat(result.isError()).isFalse();
+			String text = getResponseText(result);
+			assertThat(text).contains("report.xlsx");
+			assertThat(text).contains("https://mock-download.com/harness/report.xlsx");
+			assertThat(text).contains("5000");
+		}
+
+		@Test
+		@DisplayName("Should successfully send file to user with custom TTL")
+		void shouldSendFileToUserWithCustomTtl() throws Exception {
+			String path = "report.xlsx";
+			DownloadLink link = new DownloadLink(new URI("https://mock-download.com/harness/report.xlsx"), Date.from(Instant.now().plus(Duration.ofSeconds(600))), "report.xlsx", 5000L);
+			when(storageProvider.createDownloadLink(eq(path), eq(Duration.ofSeconds(600)))).thenReturn(link);
+
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, path, 600);
+
+			assertThat(result.isError()).isFalse();
+			String text = getResponseText(result);
+			assertThat(text).contains("report.xlsx");
+			assertThat(text).contains("https://mock-download.com/harness/report.xlsx");
+		}
+
+		@Test
+		@DisplayName("Should return error when tool is disabled")
+		void shouldReturnErrorWhenDisabled() {
+			properties.getDownload().setEnabled(false);
+
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, "file.txt", null);
+
+			assertThat(result.isError()).isTrue();
+			assertThat(getResponseText(result)).contains("disabled by administrator");
+
+			// Reset for other tests
+			properties.getDownload().setEnabled(true);
+		}
+
+		@Test
+		@DisplayName("Should return error when filePath is blank")
+		void shouldReturnErrorWhenFilePathBlank() {
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, "   ", null);
+
+			assertThat(result.isError()).isTrue();
+			assertThat(getResponseText(result)).contains("filePath must not be empty");
+		}
+
+		@Test
+		@DisplayName("Should return error when TTL is too low")
+		void shouldReturnErrorWhenTtlTooLow() {
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, "file.txt", 30);
+
+			assertThat(result.isError()).isTrue();
+			assertThat(getResponseText(result)).contains("must be between 60 and 28800 seconds");
+		}
+
+		@Test
+		@DisplayName("Should return error when TTL is too high")
+		void shouldReturnErrorWhenTtlTooHigh() {
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, "file.txt", 30000);
+
+			assertThat(result.isError()).isTrue();
+			assertThat(getResponseText(result)).contains("must be between 60 and 28800 seconds");
+		}
+
+		@Test
+		@DisplayName("Should return error when exception is thrown by storage provider")
+		void shouldReturnErrorOnStorageException() throws Exception {
+			String path = "non-existent.txt";
+			when(storageProvider.createDownloadLink(eq(path), any())).thenThrow(new IOException("File not found"));
+
+			McpSchema.CallToolResult result = spyFileSystemTools.sendFileToUser(context, path, null);
+
+			assertThat(result.isError()).isTrue();
+			assertThat(getResponseText(result)).contains("Error: File not found");
 		}
 	}
 }

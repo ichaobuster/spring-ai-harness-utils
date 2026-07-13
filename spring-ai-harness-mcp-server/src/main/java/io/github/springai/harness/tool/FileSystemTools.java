@@ -1,10 +1,13 @@
 package io.github.springai.harness.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
+import io.github.springai.harness.storage.DownloadLink;
+import io.github.springai.harness.storage.QuotaExceededException;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
-import io.github.springai.harness.storage.QuotaExceededException;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +19,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
-import java.util.Base64;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,11 +36,21 @@ public class FileSystemTools {
 
 	private static final Integer GREP_MAX_OUTPUT_LENGTH = 50_000;
 
+	private static final Duration DOWNLOAD_LINK_MAX_TTL = Duration.ofHours(8);
+
+	private static final Duration DOWNLOAD_LINK_MIN_TTL = Duration.ofMinutes(1);
+
 	@Autowired
 	private StorageProviderFactory storageProviderFactory;
 
 	@Autowired
 	private SnapshotProvider snapshotProvider;
+
+	@Autowired
+	private HarnessMcpServerProperties properties;
+
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	protected StorageProvider getStorageProvider(McpTransportContext context) {
 		return storageProviderFactory.getStorageProvider(context);
@@ -613,4 +626,63 @@ public class FileSystemTools {
 		return snippet.toString();
 	}
 
+	// @formatter:off
+	@McpTool(name = "SendFileToUser", description = """
+		Creates a temporary download link for a file in the current workspace, allowing the user to download it directly via browser.
+		The filePath must be relative to the workspace.
+		Directories and internal workspace files (.snapshots, .trash, .shadow, .storage) cannot be sent.
+		The link expires after the specified time (default: 1 hour, max: 8 hours).
+		Returns a JSON object containing fileName, size, expiresAt, and downloadUrl.
+		""")
+	public McpSchema.CallToolResult sendFileToUser(
+			McpTransportContext context,
+			@McpToolParam(description = "The relative path to the file to send, relative to the workspace") String filePath,
+			@McpToolParam(description = "Link expiration in seconds (60-28800, default 3600)", required = false) Integer expiresInSeconds) { // @formatter:on
+
+		// 检查下载服务是否启用
+		if (!properties.getDownload().isEnabled()) {
+			return McpSchema.CallToolResult.builder()
+					.isError(true)
+					.addTextContent("Error: SendFileToUser tool is disabled by administrator")
+					.build();
+		}
+
+		if (filePath == null || filePath.isBlank()) {
+			return McpSchema.CallToolResult.builder()
+					.isError(true)
+					.addTextContent("Error: filePath must not be empty")
+					.build();
+		}
+
+		// 处理过期时间
+		long ttlSec = properties.getDownload().getDefaultTtl().toSeconds();
+		long maxTtlSec = DOWNLOAD_LINK_MAX_TTL.toSeconds();
+		long minTtlSec = DOWNLOAD_LINK_MIN_TTL.toSeconds();
+
+		if (expiresInSeconds != null) {
+			if (expiresInSeconds < minTtlSec || expiresInSeconds > maxTtlSec) {
+				return McpSchema.CallToolResult.builder()
+						.isError(true)
+						.addTextContent(String.format("Error: expiresInSeconds must be between %d and %d seconds", minTtlSec, maxTtlSec))
+						.build();
+			}
+			ttlSec = expiresInSeconds;
+		}
+
+		StorageProvider storageProvider = getStorageProvider(context);
+		try {
+			DownloadLink downloadLink = storageProvider.createDownloadLink(filePath, Duration.ofSeconds(ttlSec));
+
+			String json = objectMapper.writeValueAsString(downloadLink);
+			return McpSchema.CallToolResult.builder()
+					.addTextContent(json)
+					.build();
+		} catch (Exception e) {
+			log.error("Failed to generate download link for file: {}", filePath, e);
+			return McpSchema.CallToolResult.builder()
+					.isError(true)
+					.addTextContent("Error: " + e.getMessage())
+					.build();
+		}
+	}
 }

@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Duration;
+import com.aliyun.oss.HttpMethod;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Date;
@@ -1246,6 +1248,144 @@ class AliyunOssStorageTest {
 			assertThat(text2).isEqualTo("Cached Doc Content");
 
 			verify(ossClient, never()).getObject(bucketName, fullKey);
+		}
+	}
+
+	@Nested
+	@DisplayName("CreateDownloadLink Tests")
+	class CreateDownloadLinkTests {
+
+		@Test
+		@DisplayName("Should successfully create a download link")
+		void createDownloadLink_success() throws Exception {
+			String path = "test.txt";
+			String fullKey = prefix + path;
+			Duration ttl = Duration.ofMinutes(5);
+
+			// Mock object existence
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+
+			// Mock isDirectory (not directory)
+			ObjectListing dirListing = new ObjectListing();
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			// Mock getInfo / getObjectMetadata
+			ObjectMetadata metadata = new ObjectMetadata();
+			metadata.setContentLength(100L);
+			metadata.setLastModified(new Date());
+			when(ossClient.getObjectMetadata(bucketName, fullKey)).thenReturn(metadata);
+
+			// Mock generatePresignedUrl
+			java.net.URL mockUrl = new java.net.URL("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/" + fullKey + "?OSSAccessKeyId=test");
+			when(ossClient.generatePresignedUrl(any(GeneratePresignedUrlRequest.class))).thenReturn(mockUrl);
+
+			// When
+			DownloadLink link = storage.createDownloadLink(path, ttl);
+
+			// Then
+			assertThat(link).isNotNull();
+			assertThat(link.fileName()).isEqualTo("test.txt");
+			assertThat(link.size()).isEqualTo(100L);
+			assertThat(link.url()).isEqualTo(mockUrl.toURI());
+			assertThat(link.expiresAt()).isAfter(Instant.now());
+
+			// Verify request properties
+			verify(ossClient).generatePresignedUrl(argThat(request -> {
+				assertThat(request.getBucketName()).isEqualTo(bucketName);
+				assertThat(request.getKey()).isEqualTo(fullKey);
+				assertThat(request.getMethod()).isEqualTo(HttpMethod.GET);
+				assertThat(request.getResponseHeaders().getContentDisposition()).contains("attachment");
+				assertThat(request.getResponseHeaders().getContentDisposition()).contains("test.txt");
+				return true;
+			}));
+		}
+
+		@Test
+		@DisplayName("Should reject absolute path")
+		void createDownloadLink_absolutePath_rejected() {
+			assertThatThrownBy(() -> storage.createDownloadLink("/absolute/path.txt", Duration.ofMinutes(5)))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Absolute paths are not allowed");
+		}
+
+		@Test
+		@DisplayName("Should reject internal paths")
+		void createDownloadLink_internalPaths_rejected() {
+			assertThatThrownBy(() -> storage.createDownloadLink(".snapshots/file.txt", Duration.ofMinutes(5)))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Access to internal path is denied");
+
+			assertThatThrownBy(() -> storage.createDownloadLink(".trash/file.txt", Duration.ofMinutes(5)))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Access to internal path is denied");
+
+			assertThatThrownBy(() -> storage.createDownloadLink(".shadow/file.txt", Duration.ofMinutes(5)))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Access to internal path is denied");
+
+			assertThatThrownBy(() -> storage.createDownloadLink(".storage", Duration.ofMinutes(5)))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Access to internal path is denied");
+		}
+
+		@Test
+		@DisplayName("Should reject directory path")
+		void createDownloadLink_directory_rejected() {
+			String path = "subdir";
+			String fullKey = prefix + path + "/";
+
+			// Mock isDirectory (is a directory because listObjects returns common prefixes or objects)
+			ObjectListing dirListing = new ObjectListing();
+			OSSObjectSummary summary = new OSSObjectSummary();
+			summary.setKey(fullKey + "file.txt");
+			dirListing.setObjectSummaries(List.of(summary));
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			assertThatThrownBy(() -> storage.createDownloadLink(path, Duration.ofMinutes(5)))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("Cannot create download link for a directory");
+		}
+
+		@Test
+		@DisplayName("Should reject non-existent file")
+		void createDownloadLink_fileNotFound() {
+			String path = "non-existent.txt";
+			String fullKey = prefix + path;
+
+			// Mock isDirectory (not directory)
+			ObjectListing dirListing = new ObjectListing();
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			// Mock doesObjectExist to return false
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(false);
+
+			assertThatThrownBy(() -> storage.createDownloadLink(path, Duration.ofMinutes(5)))
+					.isInstanceOf(FileNotFoundException.class)
+					.hasMessageContaining("File not found");
+		}
+
+		@Test
+		@DisplayName("Should sanitize filename in createDownloadLink")
+		void createDownloadLink_fileNameSanitization() throws Exception {
+			String path = "test:*?\"<>|file.txt";
+			String fullKey = prefix + path;
+			Duration ttl = Duration.ofMinutes(5);
+
+			when(ossClient.doesObjectExist(bucketName, fullKey)).thenReturn(true);
+
+			ObjectListing dirListing = new ObjectListing();
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			ObjectMetadata metadata = new ObjectMetadata();
+			metadata.setContentLength(100L);
+			metadata.setLastModified(new Date());
+			when(ossClient.getObjectMetadata(bucketName, fullKey)).thenReturn(metadata);
+
+			java.net.URL mockUrl = new java.net.URL("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/memories/sanitized_file.txt");
+			when(ossClient.generatePresignedUrl(any(GeneratePresignedUrlRequest.class))).thenReturn(mockUrl);
+
+			DownloadLink link = storage.createDownloadLink(path, ttl);
+			assertThat(link.fileName()).isEqualTo("test_______file.txt");
 		}
 	}
 }

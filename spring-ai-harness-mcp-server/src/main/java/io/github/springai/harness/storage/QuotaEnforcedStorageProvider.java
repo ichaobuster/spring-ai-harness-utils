@@ -2,6 +2,7 @@ package io.github.springai.harness.storage;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -221,5 +222,10 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 	@Override
 	public void createDirectory(String path) throws IOException {
 		delegate.createDirectory(path);
+	}
+
+	@Override
+	public DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
+		return delegate.createDownloadLink(path, ttl);
 	}
 }

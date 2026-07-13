@@ -12,7 +12,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -306,5 +310,20 @@ class ObservedStorageProviderTest {
 
 		assertThat(result).isEqualTo(500L);
 		verify(delegate).calculateTotalSize(List.of("exclude"));
+	}
+
+	@Test
+	@DisplayName("Should trace createDownloadLink and delegate")
+	void shouldTraceCreateDownloadLink() throws Exception {
+		String path = "test.txt";
+		Duration ttl = Duration.ofMinutes(5);
+		DownloadLink expected = new DownloadLink(new URI("http://mock"), Date.from(Instant.now().plus(ttl)), "test.txt", 100L);
+		when(delegate.createDownloadLink(path, ttl)).thenReturn(expected);
+
+		DownloadLink actual = observedStorageProvider.createDownloadLink(path, ttl);
+
+		assertThat(actual).isEqualTo(expected);
+		assertThat(startedObservations).contains("mcp.storage.createDownloadLink");
+		verify(delegate).createDownloadLink(path, ttl);
 	}
 }

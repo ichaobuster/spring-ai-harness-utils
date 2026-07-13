@@ -4,6 +4,7 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -205,5 +206,10 @@ public class ObservedStorageProvider implements StorageProvider {
 	@Override
 	public void createDirectory(String path) throws IOException {
 		observeVoid("createDirectory", path, () -> delegate.createDirectory(path));
+	}
+
+	@Override
+	public DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
+		return observe("createDownloadLink", path, () -> delegate.createDownloadLink(path, ttl));
 	}
 }

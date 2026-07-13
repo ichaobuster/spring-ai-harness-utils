@@ -8,6 +8,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -356,5 +360,21 @@ class QuotaEnforcedStorageProviderTest {
 		verify(quotaManager).checkQuota(delegate, 5L);
 		verify(delegate).writeString(".snapshots/a.txt", "hello");
 		verify(quotaManager).updateUsedBytes(delegate, 5L);
+	}
+
+	@Test
+	@DisplayName("Should delegate createDownloadLink directly without quota checks")
+	void shouldDelegateCreateDownloadLink() throws Exception {
+		String path = "test.txt";
+		Duration ttl = Duration.ofMinutes(5);
+		DownloadLink expected = new DownloadLink(new URI("http://mock"), Date.from(Instant.now().plus(ttl)), "test.txt", 100L);
+		when(delegate.createDownloadLink(path, ttl)).thenReturn(expected);
+
+		DownloadLink actual = provider.createDownloadLink(path, ttl);
+
+		assertThat(actual).isEqualTo(expected);
+		verify(delegate).createDownloadLink(path, ttl);
+		verify(quotaManager, never()).checkQuota(any(), anyLong());
+		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
 	}
 }
