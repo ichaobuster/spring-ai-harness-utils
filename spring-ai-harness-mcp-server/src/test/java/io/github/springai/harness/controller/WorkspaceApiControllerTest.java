@@ -317,4 +317,17 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.error").value("Source path not found: missing.txt"));
 	}
+
+	@Test
+	@DisplayName("Should empty trash successfully")
+	void shouldEmptyTrashSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+
+		mockMvc.perform(post("/api/v1/workspace/trash/empty")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Trash emptied successfully"));
+
+		verify(storageProvider).emptyTrash();
+	}
 }

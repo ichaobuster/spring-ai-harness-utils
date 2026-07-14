@@ -274,6 +274,7 @@ Requires identity via `Authorization: {system}-{agent}-{user}` header.
 | `POST` | `/api/v1/workspace/files/upload?path=` | Upload/write file (triggers auto pre-snapshot) |
 | `POST` | `/api/v1/workspace/files/move?fromPath=&toPath=` | Move/rename file or directory |
 | `DELETE` | `/api/v1/workspace/files?path=&trash=true` | Delete or move to recycle bin |
+| `POST` | `/api/v1/workspace/trash/empty` | Empty the recycle bin (.trash/) |
 | `GET` | `/api/v1/workspace/snapshots?path=` | Query file snapshot history |
 | `POST` | `/api/v1/workspace/rewind/{snapshotId}` | One-click rollback to a specific snapshot |
 

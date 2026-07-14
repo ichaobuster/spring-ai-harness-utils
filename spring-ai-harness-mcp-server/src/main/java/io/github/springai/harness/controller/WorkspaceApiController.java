@@ -131,4 +131,11 @@ public class WorkspaceApiController {
 		storage.rename(fromPath, toPath);
 		return ResponseEntity.ok(Map.of("message", "File moved successfully", "fromPath", fromPath, "toPath", toPath));
 	}
+
+	@PostMapping("/trash/empty")
+	public ResponseEntity<?> emptyTrash(HttpServletRequest request) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		storage.emptyTrash();
+		return ResponseEntity.ok(Map.of("message", "Trash emptied successfully"));
+	}
 }
