@@ -30,7 +30,7 @@ public class SkillTools {
 		Lists all available skills in the workspace under skills/ directory.
 		Returns skill names, base directories, and descriptions.
 		Use ReadSkill to view the full instructions for a specific skill.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public String listSkills(McpTransportContext context) { // @formatter:on
 		try {
 			List<SkillInfo> skills = skillProvider.listSkills(context);
@@ -60,7 +60,7 @@ public class SkillTools {
 		Usage:
 		- Provide the skillName returned by ListSkills.
 		- Returns the complete markdown instructions for executing the skill along with its base directory.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public String readSkill(
 			McpTransportContext context,
 			@McpToolParam(description = "The name of the skill to read") String skillName) { // @formatter:on

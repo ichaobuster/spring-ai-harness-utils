@@ -69,7 +69,7 @@ public class FileSystemTools {
 		- Any lines longer than 2000 characters will be truncated.
 		- For images, the binary data is returned in standard base64 multimedia format.
 		- This tool can only read files, not directories.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public McpSchema.CallToolResult read(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file to read, relative to the workspace") String filePath,
@@ -176,7 +176,7 @@ public class FileSystemTools {
 		- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 		- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
 		- This tool will fail if the workspace storage quota limit is exceeded. If this happens, you must delete unnecessary files to free up space.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false))
 	public String write(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file to write, relative to the workspace") String filePath,
@@ -222,7 +222,7 @@ public class FileSystemTools {
 		- The edit will FAIL if `oldString` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`.
 		- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
 		- This tool will fail if the workspace storage quota limit is exceeded. If this happens, you must delete unnecessary files to free up space.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false))
 	public String edit(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file to modify, relative to the workspace") String filePath,
@@ -302,7 +302,7 @@ public class FileSystemTools {
         - Use this tool when you need to find files by name patterns
         - When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
         - You can call multiple tools in a single response. It is always better to speculatively perform multiple searches in parallel if they are potentially useful.
-        """)
+        """, annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 
 	public String glob(
 			McpTransportContext context,
@@ -344,7 +344,7 @@ public class FileSystemTools {
 		- Multiline matching: By default patterns match within single lines only. For cross-line patterns, use `multiline: true`
 
 		Note: This is a pure Java implementation that doesn't require ripgrep installation. But it provides similar functionality.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public String grep(
 			McpTransportContext mcpSyncRequestContext,
 			@McpToolParam(description = "The regular expression pattern to search for in file contents") String pattern,
@@ -393,7 +393,7 @@ public class FileSystemTools {
 		- The path parameter must be a path relative to the workspace directory.
 		- If path is omitted or empty, lists the workspace root directory.
 		- Returns entries with details including name, type (file or directory), size, and last modified timestamp.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public String listDirectory(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the directory to list. Omit to list the workspace root directory.", required = false) String path) { // @formatter:on
@@ -449,7 +449,7 @@ public class FileSystemTools {
 		Usage:
 		- The filePath parameter must be a path relative to the workspace directory.
 		- If the file or directory exists, it will be safely moved to .trash/ inside the workspace.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true))
 	public String trash(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file or directory to move to trash") String filePath) { // @formatter:on
@@ -477,7 +477,7 @@ public class FileSystemTools {
 	@McpTool(name = "ListSnapshots", description = """
 		Lists historical file snapshots captured before destructive operations (Write, Edit, Trash).
 		Returns snapshot IDs, file paths, actions, and creation timestamps.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public String listSnapshots(
 			McpTransportContext context,
 			@McpToolParam(description = "Optional file path to filter snapshots by", required = false) String filePath) { // @formatter:on
@@ -514,7 +514,7 @@ public class FileSystemTools {
 		Usage:
 		- Provide the `snapshotId` returned by `ListSnapshots`.
 		- The file will be restored to its pre-operation snapshot state, and a safety snapshot of the current state will be created.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true))
 	public String rewind(
 			McpTransportContext context,
 			@McpToolParam(description = "The snapshot ID to restore (e.g. 1783354800000_1)") String snapshotId) { // @formatter:on
@@ -633,7 +633,7 @@ public class FileSystemTools {
 		Directories and internal workspace files (.snapshots, .trash, .shadow, .storage) cannot be sent.
 		The link expires after the specified time (default: 1 hour, max: 8 hours).
 		Returns a JSON object containing fileName, size, expiresAt, and downloadUrl.
-		""")
+		""", annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false))
 	public McpSchema.CallToolResult sendFileToUser(
 			McpTransportContext context,
 			@McpToolParam(description = "The relative path to the file to send, relative to the workspace") String filePath,
