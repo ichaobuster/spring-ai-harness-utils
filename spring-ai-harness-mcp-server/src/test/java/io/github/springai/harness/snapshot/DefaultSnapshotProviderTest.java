@@ -1,5 +1,6 @@
 package io.github.springai.harness.snapshot;
 
+import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.storage.StorageProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -194,5 +195,56 @@ class DefaultSnapshotProviderTest {
 				java.io.FileNotFoundException.class,
 				() -> snapshotProvider.rewind(storage, "nocontent-snap")
 		);
+	}
+
+	@Test
+	@DisplayName("Should auto clean expired snapshots when enabled")
+	void shouldAutoCleanExpiredSnapshotsWhenEnabled() throws IOException {
+		HarnessMcpServerProperties.SnapshotProperties props = new HarnessMcpServerProperties.SnapshotProperties();
+		props.setAutoCleanEnabled(true);
+		props.setCleanTtl(java.time.Duration.ofDays(7));
+
+		DefaultSnapshotProvider cleanProvider = new DefaultSnapshotProvider(props);
+
+		when(storage.exists("foo.txt")).thenReturn(true);
+		when(storage.isDirectory("foo.txt")).thenReturn(false);
+		when(storage.readString("foo.txt")).thenReturn("content");
+
+		when(storage.exists(".snapshots")).thenReturn(true);
+
+		long now = System.currentTimeMillis();
+		long expiredTs = now - java.time.Duration.ofDays(8).toMillis();
+		long recentTs = now - java.time.Duration.ofDays(2).toMillis();
+
+		when(storage.listDirectory(".snapshots")).thenReturn(List.of(
+				new StorageProvider.Info(expiredTs + "_1", true, true, 0, 0),
+				new StorageProvider.Info(recentTs + "_2", true, true, 0, 0),
+				new StorageProvider.Info("invalid-name", true, true, 0, 0)
+		));
+
+		String snapshotId = cleanProvider.createSnapshot(storage, "foo.txt", "WRITE");
+
+		assertThat(snapshotId).isNotNull();
+		verify(storage).delete(".snapshots/" + expiredTs + "_1");
+		verify(storage, org.mockito.Mockito.never()).delete(".snapshots/" + recentTs + "_2");
+		verify(storage, org.mockito.Mockito.never()).delete(".snapshots/invalid-name");
+	}
+
+	@Test
+	@DisplayName("Should not auto clean snapshots when disabled")
+	void shouldNotAutoCleanSnapshotsWhenDisabled() throws IOException {
+		HarnessMcpServerProperties.SnapshotProperties props = new HarnessMcpServerProperties.SnapshotProperties();
+		props.setAutoCleanEnabled(false);
+
+		DefaultSnapshotProvider noCleanProvider = new DefaultSnapshotProvider(props);
+
+		when(storage.exists("foo.txt")).thenReturn(true);
+		when(storage.isDirectory("foo.txt")).thenReturn(false);
+		when(storage.readString("foo.txt")).thenReturn("content");
+
+		String snapshotId = noCleanProvider.createSnapshot(storage, "foo.txt", "WRITE");
+
+		assertThat(snapshotId).isNotNull();
+		verify(storage, org.mockito.Mockito.never()).listDirectory(".snapshots");
 	}
 }

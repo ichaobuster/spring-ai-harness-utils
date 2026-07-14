@@ -49,6 +49,8 @@ public class HarnessMcpServerProperties {
 
 	private AttachmentProperties attachment = new AttachmentProperties();
 
+	private SnapshotProperties snapshot = new SnapshotProperties();
+
 	@Data
 	public static class ObservabilityProperties {
 		/**
@@ -147,6 +149,19 @@ public class HarnessMcpServerProperties {
 		 * 未指定 conversationId 时的默认值
 		 */
 		private String defaultConversationId = "default";
+	}
+
+	@Data
+	public static class SnapshotProperties {
+		/**
+		 * 是否启用历史快照自动清理功能，默认 false
+		 */
+		private boolean autoCleanEnabled = false;
+
+		/**
+		 * 快照过期清理时长（默认 7 天）
+		 */
+		private Duration cleanTtl = Duration.ofDays(7);
 	}
 
 }

@@ -338,4 +338,13 @@ class ObservedStorageProviderTest {
 		assertThat(startedObservations).contains("mcp.storage.writeFile");
 		verify(delegate).writeFile("foo.txt", is, 100L);
 	}
+
+	@Test
+	@DisplayName("Should trace emptyTrash and delegate")
+	void shouldTraceEmptyTrash() throws IOException {
+		observedStorageProvider.emptyTrash();
+
+		assertThat(startedObservations).contains("mcp.storage.emptyTrash");
+		verify(delegate).emptyTrash();
+	}
 }

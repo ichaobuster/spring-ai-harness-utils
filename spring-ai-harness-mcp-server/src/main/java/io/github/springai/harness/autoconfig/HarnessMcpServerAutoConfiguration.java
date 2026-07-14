@@ -69,7 +69,7 @@ public class HarnessMcpServerAutoConfiguration {
 	public SnapshotProvider snapshotProvider(
 			HarnessMcpServerProperties properties,
 			ObjectProvider<ObservationRegistry> observationRegistryProvider) {
-		SnapshotProvider baseSnapshotProvider = new DefaultSnapshotProvider();
+		SnapshotProvider baseSnapshotProvider = new DefaultSnapshotProvider(properties.getSnapshot());
 		ObservationRegistry registry = observationRegistryProvider.getIfAvailable();
 		if (registry != null && properties.getObservability().isEnabled()) {
 			return new ObservedSnapshotProvider(baseSnapshotProvider, registry);

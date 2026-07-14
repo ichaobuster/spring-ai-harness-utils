@@ -35,13 +35,13 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 			cleanPath = cleanPath.substring(1);
 		}
 
-		if (!quotaManager.isTrashIncluded() && cleanPath.startsWith(".trash/")) {
+		if (!quotaManager.isTrashIncluded() && (cleanPath.equals(".trash") || cleanPath.startsWith(".trash/"))) {
 			return true;
 		}
-		if (!quotaManager.isSnapshotsIncluded() && cleanPath.startsWith(".snapshots/")) {
+		if (!quotaManager.isSnapshotsIncluded() && (cleanPath.equals(".snapshots") || cleanPath.startsWith(".snapshots/"))) {
 			return true;
 		}
-		if (!quotaManager.isShadowCacheIncluded() && cleanPath.startsWith(".shadow/")) {
+		if (!quotaManager.isShadowCacheIncluded() && (cleanPath.equals(".shadow") || cleanPath.startsWith(".shadow/"))) {
 			return true;
 		}
 		// 元文件本身不计入容量
@@ -252,5 +252,17 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 	@Override
 	public DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
 		return delegate.createDownloadLink(path, ttl);
+	}
+
+	@Override
+	public void emptyTrash() throws IOException {
+		boolean oldExcluded = isExcludedPath(".trash");
+		long size = getPathSize(".trash");
+
+		delegate.emptyTrash();
+
+		if (!oldExcluded) {
+			quotaManager.updateUsedBytes(delegate, -size);
+		}
 	}
 }

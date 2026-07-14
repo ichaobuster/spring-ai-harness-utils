@@ -218,4 +218,9 @@ public class ObservedStorageProvider implements StorageProvider {
 	public DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
 		return observe("createDownloadLink", path, () -> delegate.createDownloadLink(path, ttl));
 	}
+
+	@Override
+	public void emptyTrash() throws IOException {
+		observeVoid("emptyTrash", ".trash", () -> delegate.emptyTrash());
+	}
 }

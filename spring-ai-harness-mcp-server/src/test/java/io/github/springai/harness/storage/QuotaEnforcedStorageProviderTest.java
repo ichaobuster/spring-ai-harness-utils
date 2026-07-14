@@ -403,4 +403,37 @@ class QuotaEnforcedStorageProviderTest {
 		verify(quotaManager, never()).checkQuota(any(), anyLong());
 		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
 	}
+
+	@Test
+	@DisplayName("Should empty trash and not update used bytes if trash is excluded")
+	void shouldEmptyTrashAndNotUpdateUsedBytesWhenExcluded() throws IOException {
+		when(delegate.exists(".trash")).thenReturn(true);
+		when(delegate.isDirectory(".trash")).thenReturn(true);
+
+		StorageProvider subDelegate = mock(StorageProvider.class);
+		when(delegate.subDirProvider(".trash")).thenReturn(subDelegate);
+		when(subDelegate.calculateTotalSize(null)).thenReturn(500L);
+
+		provider.emptyTrash();
+
+		verify(delegate).emptyTrash();
+		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
+	}
+
+	@Test
+	@DisplayName("Should empty trash and update used bytes if trash is included in quota")
+	void shouldEmptyTrashAndUpdateUsedBytesWhenIncluded() throws IOException {
+		when(quotaManager.isTrashIncluded()).thenReturn(true);
+		when(delegate.exists(".trash")).thenReturn(true);
+		when(delegate.isDirectory(".trash")).thenReturn(true);
+
+		StorageProvider subDelegate = mock(StorageProvider.class);
+		when(delegate.subDirProvider(".trash")).thenReturn(subDelegate);
+		when(subDelegate.calculateTotalSize(null)).thenReturn(500L);
+
+		provider.emptyTrash();
+
+		verify(delegate).emptyTrash();
+		verify(quotaManager).updateUsedBytes(delegate, -500L);
+	}
 }

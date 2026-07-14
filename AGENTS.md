@@ -79,6 +79,10 @@ spring.ai.harness.mcp.server.attachment.default-conversation-id=default
 # Multipart file upload limits
 spring.servlet.multipart.max-file-size=50MB
 spring.servlet.multipart.max-request-size=100MB
+
+# Snapshot Auto-Clean Configuration (default: auto-clean-enabled is false, clean-ttl is 7d)
+spring.ai.harness.mcp.server.snapshot.auto-clean-enabled=false
+spring.ai.harness.mcp.server.snapshot.clean-ttl=7d
 ```
 
 ### 1.3 Backend Coding & Quality Standards

@@ -869,4 +869,11 @@ public class AliyunOssStorage implements StorageProvider {
 		String sanitized = fileName.replaceAll("[\\\\/:*?\"<>|\\r\\n]", "_");
 		return sanitized.isBlank() ? "file" : sanitized;
 	}
+
+	@Override
+	public void emptyTrash() throws IOException {
+		if (exists(".trash")) {
+			delete(".trash");
+		}
+	}
 }

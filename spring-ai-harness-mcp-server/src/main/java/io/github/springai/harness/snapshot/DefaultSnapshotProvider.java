@@ -1,5 +1,6 @@
 package io.github.springai.harness.snapshot;
 
+import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.storage.StorageProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -21,6 +22,16 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 
 	private static final String SNAPSHOT_DIR = ".snapshots";
 	private static final AtomicLong COUNTER = new AtomicLong(0);
+
+	private final HarnessMcpServerProperties.SnapshotProperties properties;
+
+	public DefaultSnapshotProvider() {
+		this.properties = new HarnessMcpServerProperties.SnapshotProperties();
+	}
+
+	public DefaultSnapshotProvider(HarnessMcpServerProperties.SnapshotProperties properties) {
+		this.properties = properties != null ? properties : new HarnessMcpServerProperties.SnapshotProperties();
+	}
 
 	@Override
 	public String createSnapshot(StorageProvider storage, String filePath, String action) throws IOException {
@@ -46,6 +57,11 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 			storage.writeString(metaPath, metaContent);
 
 			log.debug("Created snapshot {} for {} before {}", snapshotId, filePath, action);
+
+			if (properties.isAutoCleanEnabled()) {
+				cleanExpiredSnapshots(storage);
+			}
+
 			return snapshotId;
 		} catch (Exception e) {
 			log.warn("Failed to create snapshot for {}: {}", filePath, e.getMessage());
@@ -157,5 +173,38 @@ public class DefaultSnapshotProvider implements SnapshotProvider {
 	}
 
 	private record SnapshotMeta(String filePath, String action, long timestamp) {
+	}
+
+	private void cleanExpiredSnapshots(StorageProvider storage) {
+		try {
+			if (!storage.exists(SNAPSHOT_DIR)) {
+				return;
+			}
+			long threshold = System.currentTimeMillis() - properties.getCleanTtl().toMillis();
+			List<StorageProvider.Info> snapshotDirs = storage.listDirectory(SNAPSHOT_DIR);
+			for (StorageProvider.Info dir : snapshotDirs) {
+				if (!dir.isDirectory()) {
+					continue;
+				}
+				String dirName = dir.path();
+				if (dirName.endsWith("/")) {
+					dirName = dirName.substring(0, dirName.length() - 1);
+				}
+				int underScoreIdx = dirName.indexOf('_');
+				if (underScoreIdx > 0) {
+					try {
+						long ts = Long.parseLong(dirName.substring(0, underScoreIdx));
+						if (ts < threshold) {
+							log.info("Deleting expired snapshot: {}", dirName);
+							storage.delete(SNAPSHOT_DIR + "/" + dirName);
+						}
+					} catch (NumberFormatException e) {
+						log.warn("Failed to parse timestamp from snapshot dir name: {}", dirName);
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.warn("Failed to auto clean expired snapshots: {}", e.getMessage());
+		}
 	}
 }

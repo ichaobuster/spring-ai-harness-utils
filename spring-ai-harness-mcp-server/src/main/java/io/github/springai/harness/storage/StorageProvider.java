@@ -288,4 +288,15 @@ public interface StorageProvider {
 	default DownloadLink createDownloadLink(String path, Duration ttl) throws IOException {
 		throw new UnsupportedOperationException("This storage implementation does not support generating download links");
 	}
+
+	/**
+	 * Empties the workspace trash bin (.trash/).
+	 *
+	 * @throws IOException if storage operation fails
+	 */
+	default void emptyTrash() throws IOException {
+		if (exists(".trash")) {
+			delete(".trash");
+		}
+	}
 }

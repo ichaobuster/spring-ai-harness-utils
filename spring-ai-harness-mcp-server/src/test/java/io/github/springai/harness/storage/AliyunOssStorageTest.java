@@ -1408,4 +1408,42 @@ class AliyunOssStorageTest {
 					.hasMessageContaining("Absolute paths are not allowed");
 		}
 	}
+
+	@Nested
+	@DisplayName("Empty Trash Tests")
+	class EmptyTrashTests {
+
+		@Test
+		@DisplayName("Should empty trash bin successfully")
+		void shouldEmptyTrashBinSuccessfully() throws Exception {
+			String trashPath = ".trash";
+			String fullKey = prefix + trashPath + "/";
+
+			// Mock isDirectory (true for .trash)
+			ObjectListing dirListing = new ObjectListing();
+			OSSObjectSummary summary = new OSSObjectSummary();
+			summary.setBucketName(bucketName);
+			summary.setKey(fullKey + "some-deleted-file.txt");
+			dirListing.getObjectSummaries().add(summary);
+
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			storage.emptyTrash();
+
+			verify(ossClient).deleteObjects(any(DeleteObjectsRequest.class));
+		}
+
+		@Test
+		@DisplayName("Should do nothing if trash bin does not exist")
+		void shouldDoNothingIfTrashBinDoesNotExist() throws Exception {
+			// Mock listObjects to return empty list (does not exist/empty)
+			ObjectListing dirListing = new ObjectListing();
+			when(ossClient.listObjects(any(ListObjectsRequest.class))).thenReturn(dirListing);
+
+			storage.emptyTrash();
+
+			verify(ossClient, never()).deleteObject(any(), any());
+			verify(ossClient, never()).deleteObjects(any());
+		}
+	}
 }
