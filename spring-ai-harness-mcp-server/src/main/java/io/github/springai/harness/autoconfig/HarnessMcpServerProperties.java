@@ -47,6 +47,8 @@ public class HarnessMcpServerProperties {
 
 	private DownloadProperties download = new DownloadProperties();
 
+	private AttachmentProperties attachment = new AttachmentProperties();
+
 	@Data
 	public static class ObservabilityProperties {
 		/**
@@ -132,6 +134,19 @@ public class HarnessMcpServerProperties {
 		 * 默认下载链接有效期（默认：1小时）
 		 */
 		private Duration defaultTtl = Duration.ofHours(1);
+	}
+
+	@Data
+	public static class AttachmentProperties {
+		/**
+		 * 附件存储根目录（相对于工作空间根路径），默认 attachments
+		 */
+		private String basePath = "attachments";
+
+		/**
+		 * 未指定 conversationId 时的默认值
+		 */
+		private String defaultConversationId = "default";
 	}
 
 }

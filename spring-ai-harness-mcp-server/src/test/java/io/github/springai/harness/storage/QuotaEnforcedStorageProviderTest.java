@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -374,6 +375,31 @@ class QuotaEnforcedStorageProviderTest {
 
 		assertThat(actual).isEqualTo(expected);
 		verify(delegate).createDownloadLink(path, ttl);
+		verify(quotaManager, never()).checkQuota(any(), anyLong());
+		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
+	}
+
+	@Test
+	@DisplayName("Should check capacity on writeFile and delegate write")
+	void shouldCheckCapacityOnWriteFile() throws IOException {
+		InputStream is = mock(InputStream.class);
+		when(delegate.exists("file.txt")).thenReturn(false);
+
+		provider.writeFile("file.txt", is, 100L);
+
+		verify(quotaManager).checkQuota(delegate, 100L);
+		verify(delegate).writeFile("file.txt", is, 100L);
+		verify(quotaManager).updateUsedBytes(delegate, 100L);
+	}
+
+	@Test
+	@DisplayName("Should not check capacity on writeFile to excluded paths")
+	void shouldNotCheckCapacityOnWriteFileToExcluded() throws IOException {
+		InputStream is = mock(InputStream.class);
+
+		provider.writeFile(".snapshots/file.txt", is, 100L);
+
+		verify(delegate).writeFile(".snapshots/file.txt", is, 100L);
 		verify(quotaManager, never()).checkQuota(any(), anyLong());
 		verify(quotaManager, never()).updateUsedBytes(any(), anyLong());
 	}

@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -325,5 +326,16 @@ class ObservedStorageProviderTest {
 		assertThat(actual).isEqualTo(expected);
 		assertThat(startedObservations).contains("mcp.storage.createDownloadLink");
 		verify(delegate).createDownloadLink(path, ttl);
+	}
+
+	@Test
+	@DisplayName("Should trace writeFile and delegate")
+	void shouldTraceWriteFile() throws IOException {
+		InputStream is = mock(InputStream.class);
+
+		observedStorageProvider.writeFile("foo.txt", is, 100L);
+
+		assertThat(startedObservations).contains("mcp.storage.writeFile");
+		verify(delegate).writeFile("foo.txt", is, 100L);
 	}
 }

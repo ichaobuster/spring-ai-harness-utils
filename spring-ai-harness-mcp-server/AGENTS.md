@@ -138,9 +138,11 @@ spring-ai-harness-mcp-server/
     │   │   │   └── ObservabilityAutoConfiguration.java  # Observability auto-configuration
     │   │   ├── controller/
     │   │   │   ├── WorkspaceApiController.java        # User workspace REST Controller (/api/v1/workspace)
+    │   │   │   ├── AttachmentController.java          # File attachment upload/manage REST Controller (/api/v1/workspace/attachments)
     │   │   │   └── AdminApiController.java            # Admin REST Controller (/api/v1/admin)
     │   │   ├── dto/
     │   │   │   ├── FileItemDto.java                   # File list item DTO
+    │   │   │   ├── AttachmentDto.java                 # File attachment DTO
     │   │   │   └── WorkspaceInfoDto.java              # Workspace metadata DTO
     │   │   ├── skill/
     │   │   │   ├── MarkdownParser.java                # Markdown & YAML FrontMatter parser
@@ -275,6 +277,16 @@ Requires identity via `Authorization: {system}-{agent}-{user}` header.
 | `GET` | `/api/v1/workspace/snapshots?path=` | Query file snapshot history |
 | `POST` | `/api/v1/workspace/rewind/{snapshotId}` | One-click rollback to a specific snapshot |
 
+#### File Attachment Endpoints (`AttachmentController` - `/api/v1/workspace/attachments`)
+
+Requires identity via `Authorization: {system}-{agent}-{user}` header.
+
+| HTTP Method | Path | Description |
+|-------------|------|-------------|
+| `POST` | `/api/v1/workspace/attachments` | Upload a binary file attachment (supports UUID dir partitioning and conversationId) |
+| `GET` | `/api/v1/workspace/attachments?conversationId=` | List uploaded file attachments (filter by conversationId) |
+| `DELETE` | `/api/v1/workspace/attachments/{attachmentId}?conversationId=&trash=true` | Move file attachment directory to trash (or delete permanently if trash=false) |
+
 #### Admin Endpoints (`AdminApiController` - `/api/v1/admin`)
 
 Requires admin identity via `X-Admin-Token: {adminToken}` header.
@@ -399,6 +411,14 @@ spring.ai.harness.mcp.server.download.enabled=true
 spring.ai.harness.mcp.server.download.default-ttl=1h
 spring.ai.harness.mcp.server.download.max-ttl=8h
 spring.ai.harness.mcp.server.download.public-endpoint=
+
+# File Upload Attachment Configuration
+spring.ai.harness.mcp.server.attachment.base-path=attachments
+spring.ai.harness.mcp.server.attachment.default-conversation-id=default
+
+# Multipart file upload limits
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=100MB
 ```
 
 ---

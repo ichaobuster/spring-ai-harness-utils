@@ -1,6 +1,7 @@
 package io.github.springai.harness.storage;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -132,6 +133,30 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 		}
 
 		delegate.writeString(path, content);
+		quotaManager.updateUsedBytes(delegate, delta);
+	}
+
+	@Override
+	public void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		if (isExcludedPath(path)) {
+			delegate.writeFile(path, inputStream, contentLength);
+			return;
+		}
+
+		long newSize = contentLength >= 0 ? contentLength : 0;
+		long oldSize = 0;
+		if (delegate.exists(path) && !delegate.isDirectory(path)) {
+			try {
+				oldSize = delegate.getInfo(path).size();
+			} catch (Exception ignored) {}
+		}
+
+		long delta = newSize - oldSize;
+		if (delta > 0) {
+			quotaManager.checkQuota(delegate, delta);
+		}
+
+		delegate.writeFile(path, inputStream, contentLength);
 		quotaManager.updateUsedBytes(delegate, delta);
 	}
 

@@ -71,6 +71,14 @@ spring.ai.harness.mcp.server.download.enabled=true
 spring.ai.harness.mcp.server.download.default-ttl=1h
 spring.ai.harness.mcp.server.download.max-ttl=8h
 spring.ai.harness.mcp.server.download.public-endpoint=
+
+# File Upload Attachment Configuration
+spring.ai.harness.mcp.server.attachment.base-path=attachments
+spring.ai.harness.mcp.server.attachment.default-conversation-id=default
+
+# Multipart file upload limits
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=100MB
 ```
 
 ### 1.3 Backend Coding & Quality Standards

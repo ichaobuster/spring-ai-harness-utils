@@ -1380,4 +1380,32 @@ class AliyunOssStorageTest {
 			assertThat(link.fileName()).isEqualTo("test_______file.txt");
 		}
 	}
+
+	@Nested
+	@DisplayName("Write File Tests")
+	class WriteFileTests {
+
+		@Test
+		@DisplayName("Should write binary file successfully")
+		void shouldWriteBinaryFileSuccessfully() throws Exception {
+			String path = "images/logo.png";
+			byte[] content = new byte[]{1, 2, 3, 4};
+			ByteArrayInputStream is = new ByteArrayInputStream(content);
+
+			storage.writeFile(path, is, content.length);
+
+			verify(ossClient).putObject(eq(bucketName), eq(prefix + path), eq(is), any(ObjectMetadata.class));
+		}
+
+		@Test
+		@DisplayName("Should reject absolute path when writing file")
+		void shouldRejectAbsolutePathWhenWritingFile() {
+			byte[] content = new byte[]{1, 2, 3, 4};
+			ByteArrayInputStream is = new ByteArrayInputStream(content);
+
+			assertThatThrownBy(() -> storage.writeFile("/absolute/path.png", is, content.length))
+					.isInstanceOf(SecurityException.class)
+					.hasMessageContaining("Absolute paths are not allowed");
+		}
+	}
 }

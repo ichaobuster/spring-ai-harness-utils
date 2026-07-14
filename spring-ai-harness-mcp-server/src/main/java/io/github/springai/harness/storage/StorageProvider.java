@@ -2,6 +2,7 @@ package io.github.springai.harness.storage;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 
@@ -154,6 +155,18 @@ public interface StorageProvider {
 	 * @throws IOException if an error occurs.
 	 */
 	void writeString(String path, String content) throws IOException;
+
+	/**
+	 * Writes binary data from an InputStream to a file. Overwrites if it exists.
+	 *
+	 * @param path          the file path relative to the storage.
+	 * @param inputStream   the input stream to write.
+	 * @param contentLength the content length in bytes (for OSS metadata; -1 if unknown).
+	 * @throws IOException if an error occurs.
+	 */
+	default void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		throw new UnsupportedOperationException("This storage implementation does not support binary writes");
+	}
 
 	/**
 	 * Moves a file or directory to the workspace trash (.trash/).

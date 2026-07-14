@@ -4,6 +4,7 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 
@@ -107,6 +108,11 @@ public class ObservedStorageProvider implements StorageProvider {
 	@Override
 	public void writeString(String path, String content) throws IOException {
 		observeVoid("writeString", path, () -> delegate.writeString(path, content));
+	}
+
+	@Override
+	public void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		observeVoid("writeFile", path, () -> delegate.writeFile(path, inputStream, contentLength));
 	}
 
 	@Override

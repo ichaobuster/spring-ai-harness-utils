@@ -128,6 +128,15 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	@Override
+	public void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		ObjectMetadata metadata = new ObjectMetadata();
+		if (contentLength >= 0) {
+			metadata.setContentLength(contentLength);
+		}
+		this.ossClient.putObject(this.bucketName, getFullKey(path), inputStream, metadata);
+	}
+
+	@Override
 	public void trash(String path) throws IOException {
 		if (!exists(path)) {
 			throw new IOException("File or directory does not exist: " + path);
