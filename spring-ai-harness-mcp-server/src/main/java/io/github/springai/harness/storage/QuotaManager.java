@@ -130,13 +130,13 @@ public class QuotaManager {
 	private List<String> getExcludePrefixes() {
 		List<String> excludes = new ArrayList<>();
 		if (!quotaProperties.isIncludeSnapshots()) {
-			excludes.add(".snapshots/");
+			excludes.add(StorageConstants.SNAPSHOTS_DIR + "/");
 		}
 		if (!quotaProperties.isIncludeTrash()) {
-			excludes.add(".trash/");
+			excludes.add(StorageConstants.TRASH_DIR + "/");
 		}
 		if (!quotaProperties.isIncludeShadowCache()) {
-			excludes.add(".shadow/");
+			excludes.add(StorageConstants.SHADOW_DIR + "/");
 		}
 		// 元文件自身不计入容量
 		excludes.add(quotaProperties.getMetaFile());

@@ -120,6 +120,12 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	@Override
+	public InputStream readStream(String path) throws IOException {
+		OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
+		return ossObject.getObjectContent();
+	}
+
+	@Override
 	public void writeString(String path, String content) throws IOException {
 		byte[] bytes = (content != null ? content : "").getBytes(StandardCharsets.UTF_8);
 		try (InputStream is = new ByteArrayInputStream(bytes)) {
@@ -146,7 +152,7 @@ public class AliyunOssStorage implements StorageProvider {
 		if (cleanPath != null && cleanPath.startsWith("/")) {
 			cleanPath = cleanPath.substring(1);
 		}
-		String trashPath = ".trash/" + timestamp + "/" + cleanPath;
+		String trashPath = StorageConstants.TRASH_DIR + "/" + timestamp + "/" + cleanPath;
 		rename(path, trashPath);
 	}
 
@@ -872,8 +878,8 @@ public class AliyunOssStorage implements StorageProvider {
 
 	@Override
 	public void emptyTrash() throws IOException {
-		if (exists(".trash")) {
-			delete(".trash");
+		if (exists(StorageConstants.TRASH_DIR)) {
+			delete(StorageConstants.TRASH_DIR);
 		}
 	}
 }

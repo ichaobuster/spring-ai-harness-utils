@@ -51,6 +51,8 @@ public class HarnessMcpServerProperties {
 
 	private SnapshotProperties snapshot = new SnapshotProperties();
 
+	private SyncProperties sync = new SyncProperties();
+
 	@Data
 	public static class ObservabilityProperties {
 		/**
@@ -162,6 +164,14 @@ public class HarnessMcpServerProperties {
 		 * 快照过期清理时长（默认 7 天）
 		 */
 		private Duration cleanTtl = Duration.ofDays(7);
+	}
+
+	@Data
+	public static class SyncProperties {
+		/**
+		 * 打包 skills/ 目录时是否默认包含全部文件内容，默认 false 只打包 SKILL.md
+		 */
+		private boolean skillFullContent = false;
 	}
 
 }

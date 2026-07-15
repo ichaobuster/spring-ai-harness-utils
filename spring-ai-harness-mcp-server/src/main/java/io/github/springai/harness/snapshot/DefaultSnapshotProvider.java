@@ -1,6 +1,7 @@
 package io.github.springai.harness.snapshot;
 
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
+import io.github.springai.harness.storage.StorageConstants;
 import io.github.springai.harness.storage.StorageProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 public class DefaultSnapshotProvider implements SnapshotProvider {
 
-	private static final String SNAPSHOT_DIR = ".snapshots";
+	private static final String SNAPSHOT_DIR = StorageConstants.SNAPSHOTS_DIR;
 	private static final AtomicLong COUNTER = new AtomicLong(0);
 
 	private final HarnessMcpServerProperties.SnapshotProperties properties;

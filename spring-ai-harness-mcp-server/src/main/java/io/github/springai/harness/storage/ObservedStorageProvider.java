@@ -106,6 +106,11 @@ public class ObservedStorageProvider implements StorageProvider {
 	}
 
 	@Override
+	public InputStream readStream(String path) throws IOException {
+		return observe("readStream", path, () -> delegate.readStream(path));
+	}
+
+	@Override
 	public void writeString(String path, String content) throws IOException {
 		observeVoid("writeString", path, () -> delegate.writeString(path, content));
 	}

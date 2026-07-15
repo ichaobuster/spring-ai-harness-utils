@@ -1,12 +1,16 @@
 package io.github.springai.harness.controller;
 
 import io.github.springai.harness.dto.FileItemDto;
+import io.github.springai.harness.dto.WorkspaceSyncRequest;
+import io.github.springai.harness.service.WorkspaceSyncService;
+import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -35,6 +39,12 @@ public class WorkspaceApiController {
 
 	@Autowired
 	private SnapshotProvider snapshotProvider;
+
+	@Autowired
+	private WorkspaceSyncService workspaceSyncService;
+
+	@Autowired
+	private HarnessMcpServerProperties properties;
 
 	protected StorageProvider getStorageProvider(HttpServletRequest request) {
 		ServerRequest serverRequest = ServerRequest.create(request, Collections.emptyList());
@@ -137,5 +147,39 @@ public class WorkspaceApiController {
 		StorageProvider storage = getStorageProvider(request);
 		storage.emptyTrash();
 		return ResponseEntity.ok(Map.of("message", "Trash emptied successfully"));
+	}
+
+	@PostMapping("/sync")
+	public void syncWorkspace(
+			HttpServletRequest request,
+			HttpServletResponse response,
+			@RequestBody WorkspaceSyncRequest syncRequest) throws Exception {
+
+		if (syncRequest == null || syncRequest.paths() == null || syncRequest.paths().isEmpty()) {
+			response.sendError(HttpStatus.BAD_REQUEST.value(), "paths must not be empty");
+			return;
+		}
+
+		StorageProvider storage = getStorageProvider(request);
+
+		// Determine skillFullContent parameter: request value or fallback to property configuration
+		boolean skillFull = syncRequest.skillFullContent() != null
+				? syncRequest.skillFullContent()
+				: properties.getSync().isSkillFullContent();
+
+		// Parse and validate files
+		List<String> filePaths = workspaceSyncService.resolveFilePaths(storage, syncRequest.paths(), skillFull);
+
+		if (filePaths.isEmpty()) {
+			response.sendError(HttpStatus.NOT_FOUND.value(), "No files found matching the requested paths");
+			return;
+		}
+
+		// Set response headers and stream output ZIP
+		response.setContentType("application/zip");
+		response.setHeader("Content-Disposition", "attachment; filename=\"workspace-sync.zip\"");
+
+		workspaceSyncService.writeZip(storage, filePaths, response.getOutputStream());
+		response.flushBuffer();
 	}
 }

@@ -39,8 +39,8 @@ public interface StorageProvider {
 	 */
 	Integer MAX_IMAGE_EDGE = 2048;
 
-	List<String> IGNORED_PATH_PATTERN = List.of("/.git/", "/node_modules/", "/target/", "/build/", "/.idea/", "/.vscode/", "/dist/", "/__pycache__/", "/.trash/", "/.snapshots/", "/.shadow/");
-	List<String> INTERNAL_PATH_PATTERN = List.of("/.snapshots/", "/.trash/", "/.shadow/");
+	List<String> IGNORED_PATH_PATTERN = StorageConstants.IGNORED_PATH_PATTERN;
+	List<String> INTERNAL_PATH_PATTERN = StorageConstants.INTERNAL_PATH_PATTERN;
 
 	default char getSeparator() {
 		return File.separatorChar;
@@ -146,6 +146,16 @@ public interface StorageProvider {
 	 * @throws IOException if an error occurs.
 	 */
 	List<String> readAllLines(String path) throws IOException;
+
+	/**
+	 * Reads a file as raw InputStream for binary streaming.
+	 * Caller is responsible for closing the returned stream.
+	 *
+	 * @param path the file path relative to the storage.
+	 * @return the raw InputStream of the file content.
+	 * @throws IOException if an error occurs.
+	 */
+	InputStream readStream(String path) throws IOException;
 
 	/**
 	 * Writes a string to a file. Overwrites if it exists.

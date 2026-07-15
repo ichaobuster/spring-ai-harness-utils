@@ -35,13 +35,13 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 			cleanPath = cleanPath.substring(1);
 		}
 
-		if (!quotaManager.isTrashIncluded() && (cleanPath.equals(".trash") || cleanPath.startsWith(".trash/"))) {
+		if (!quotaManager.isTrashIncluded() && (cleanPath.equals(StorageConstants.TRASH_DIR) || cleanPath.startsWith(StorageConstants.TRASH_DIR + "/"))) {
 			return true;
 		}
-		if (!quotaManager.isSnapshotsIncluded() && (cleanPath.equals(".snapshots") || cleanPath.startsWith(".snapshots/"))) {
+		if (!quotaManager.isSnapshotsIncluded() && (cleanPath.equals(StorageConstants.SNAPSHOTS_DIR) || cleanPath.startsWith(StorageConstants.SNAPSHOTS_DIR + "/"))) {
 			return true;
 		}
-		if (!quotaManager.isShadowCacheIncluded() && (cleanPath.equals(".shadow") || cleanPath.startsWith(".shadow/"))) {
+		if (!quotaManager.isShadowCacheIncluded() && (cleanPath.equals(StorageConstants.SHADOW_DIR) || cleanPath.startsWith(StorageConstants.SHADOW_DIR + "/"))) {
 			return true;
 		}
 		// 元文件本身不计入容量
@@ -109,6 +109,11 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 	@Override
 	public List<String> readAllLines(String path) throws IOException {
 		return delegate.readAllLines(path);
+	}
+
+	@Override
+	public InputStream readStream(String path) throws IOException {
+		return delegate.readStream(path);
 	}
 
 	@Override
@@ -256,8 +261,8 @@ public class QuotaEnforcedStorageProvider implements StorageProvider {
 
 	@Override
 	public void emptyTrash() throws IOException {
-		boolean oldExcluded = isExcludedPath(".trash");
-		long size = getPathSize(".trash");
+		boolean oldExcluded = isExcludedPath(StorageConstants.TRASH_DIR);
+		long size = getPathSize(StorageConstants.TRASH_DIR);
 
 		delegate.emptyTrash();
 

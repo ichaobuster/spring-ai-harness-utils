@@ -4,6 +4,8 @@ import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
+import io.github.springai.harness.service.WorkspaceSyncService;
+import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,12 @@ class WorkspaceApiControllerTest {
 
 	@Mock
 	private StorageProvider storageProvider;
+
+	@Mock
+	private WorkspaceSyncService workspaceSyncService;
+
+	@Mock
+	private HarnessMcpServerProperties properties;
 
 	@InjectMocks
 	private WorkspaceApiController controller;
@@ -329,5 +337,57 @@ class WorkspaceApiControllerTest {
 				.andExpect(jsonPath("$.message").value("Trash emptied successfully"));
 
 		verify(storageProvider).emptyTrash();
+	}
+
+	@Test
+	@DisplayName("Should sync workspace zip successfully")
+	void shouldSyncWorkspaceSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		
+		HarnessMcpServerProperties.SyncProperties syncProps = new HarnessMcpServerProperties.SyncProperties();
+		syncProps.setSkillFullContent(false);
+		when(properties.getSync()).thenReturn(syncProps);
+
+		when(workspaceSyncService.resolveFilePaths(storageProvider, List.of("SOUL.md"), false))
+				.thenReturn(List.of("SOUL.md"));
+
+		mockMvc.perform(post("/api/v1/workspace/sync")
+						.contentType("application/json")
+						.content("{\"paths\":[\"SOUL.md\"]}")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Content-Disposition", "attachment; filename=\"workspace-sync.zip\""))
+				.andExpect(content().contentType("application/zip"));
+
+		verify(workspaceSyncService).writeZip(eq(storageProvider), eq(List.of("SOUL.md")), any());
+	}
+
+	@Test
+	@DisplayName("Should return 400 when sync request is empty")
+	void shouldReturn400WhenSyncRequestIsEmpty() throws Exception {
+		mockMvc.perform(post("/api/v1/workspace/sync")
+						.contentType("application/json")
+						.content("{\"paths\":[]}")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@DisplayName("Should return 404 when no matching files found to sync")
+	void shouldReturn404WhenNoFilesToSync() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		
+		HarnessMcpServerProperties.SyncProperties syncProps = new HarnessMcpServerProperties.SyncProperties();
+		syncProps.setSkillFullContent(false);
+		when(properties.getSync()).thenReturn(syncProps);
+
+		when(workspaceSyncService.resolveFilePaths(storageProvider, List.of("SOUL.md"), false))
+				.thenReturn(List.of());
+
+		mockMvc.perform(post("/api/v1/workspace/sync")
+						.contentType("application/json")
+						.content("{\"paths\":[\"SOUL.md\"]}")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound());
 	}
 }
