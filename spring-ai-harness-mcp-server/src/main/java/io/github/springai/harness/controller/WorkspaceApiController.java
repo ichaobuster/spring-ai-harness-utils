@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.function.ServerRequest;
 
 import java.io.InputStream;
@@ -131,10 +132,19 @@ public class WorkspaceApiController {
 	public ResponseEntity<?> uploadFile(
 			HttpServletRequest request,
 			@RequestParam("path") String path,
-			@RequestBody String content) throws Exception {
+			@RequestParam("file") MultipartFile file) throws Exception {
+		if (file == null || file.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(Map.of("error", "Uploaded file is empty"));
+		}
+		if (path == null || path.isBlank()) {
+			throw new IllegalArgumentException("path must not be empty");
+		}
 		StorageProvider storage = getStorageProvider(request);
 		snapshotProvider.createSnapshot(storage, path, "WRITE");
-		storage.writeString(path, content != null ? content : "");
+		try (InputStream is = file.getInputStream()) {
+			storage.writeFile(path, is, file.getSize());
+		}
 		return ResponseEntity.ok(Map.of("message", "File uploaded successfully", "path", path));
 	}
 

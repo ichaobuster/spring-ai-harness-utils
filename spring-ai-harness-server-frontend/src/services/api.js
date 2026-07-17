@@ -20,12 +20,19 @@ export const api = {
     return res.data;
   },
 
-  uploadFile: async (authHeader, path, content) => {
-    const res = await axios.post(`${BASE_URL}/api/v1/workspace/files/upload`, content, {
+  uploadFile: async (authHeader, path, fileOrContent) => {
+    const formData = new FormData();
+    if (fileOrContent instanceof File || fileOrContent instanceof Blob) {
+      formData.append('file', fileOrContent);
+    } else {
+      const blob = new Blob([fileOrContent], { type: 'text/plain' });
+      formData.append('file', blob, 'file.txt');
+    }
+    const res = await axios.post(`${BASE_URL}/api/v1/workspace/files/upload`, formData, {
       params: { path },
       headers: {
         Authorization: authHeader,
-        'Content-Type': 'text/plain'
+        'Content-Type': 'multipart/form-data'
       }
     });
     return res.data;

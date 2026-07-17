@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -151,26 +152,40 @@ class WorkspaceApiControllerTest {
 	void shouldUploadFile() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
 
-		mockMvc.perform(post("/api/v1/workspace/files/upload")
+		MockMultipartFile mockFile = new MockMultipartFile(
+				"file",
+				"foo.txt",
+				"text/plain",
+				"New Content".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/v1/workspace/files/upload")
+						.file(mockFile)
 						.param("path", "foo.txt")
-						.content("New Content")
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("File uploaded successfully"));
 
 		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "WRITE");
-		verify(storageProvider).writeString("foo.txt", "New Content");
+		verify(storageProvider).writeFile(eq("foo.txt"), any(InputStream.class), eq(11L));
 	}
 
 	@Test
 	@DisplayName("Should return 500 when upload file throws exception")
 	void shouldReturn500WhenUploadFileFails() throws Exception {
 		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
-		doThrow(new RuntimeException("Write error")).when(storageProvider).writeString("foo.txt", "New Content");
+		doThrow(new IOException("Write error")).when(storageProvider).writeFile(eq("foo.txt"), any(InputStream.class), eq(11L));
 
-		mockMvc.perform(post("/api/v1/workspace/files/upload")
+		MockMultipartFile mockFile = new MockMultipartFile(
+				"file",
+				"foo.txt",
+				"text/plain",
+				"New Content".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/v1/workspace/files/upload")
+						.file(mockFile)
 						.param("path", "foo.txt")
-						.content("New Content")
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.error").value("Write error"));
@@ -539,6 +554,24 @@ class WorkspaceApiControllerTest {
 				.andExpect(jsonPath("$.maxBytes").value(1000))
 				.andExpect(jsonPath("$.remainingBytes").value(600))
 				.andExpect(jsonPath("$.enabled").value(true));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when uploaded file is empty")
+	void shouldReturn400WhenUploadedFileIsEmpty() throws Exception {
+		MockMultipartFile emptyFile = new MockMultipartFile(
+				"file",
+				"empty.txt",
+				"text/plain",
+				new byte[0]
+		);
+
+		mockMvc.perform(multipart("/api/v1/workspace/files/upload")
+						.file(emptyFile)
+						.param("path", "empty.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Uploaded file is empty"));
 	}
 }
 
