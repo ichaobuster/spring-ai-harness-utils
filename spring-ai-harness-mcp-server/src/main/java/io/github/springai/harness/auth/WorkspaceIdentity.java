@@ -17,6 +17,16 @@ public record WorkspaceIdentity(String system, String agent, String user) {
 	}
 
 	/**
+	 * Returns the dynamic session ID representing the system, agent, and user.
+	 * e.g. "system-agent-user"
+	 *
+	 * @return session ID string
+	 */
+	public String getSessionId() {
+		return system + "-" + agent + "-" + user;
+	}
+
+	/**
 	 * Constructs full OSS workspace path with prefix.
 	 * e.g., prefix = "mcp/workspaces/", system = "sys", agent = "ag", user = "usr"
 	 * -> "mcp/workspaces/sys-ag-usr/"
@@ -29,6 +39,6 @@ public record WorkspaceIdentity(String system, String agent, String user) {
 		if (basePrefix.startsWith("/")) {
 			basePrefix = basePrefix.substring(1);
 		}
-		return basePrefix + system + "-" + agent + "-" + user + "/";
+		return basePrefix + getSessionId() + "/";
 	}
 }

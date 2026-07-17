@@ -166,7 +166,6 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("File uploaded successfully"));
 
-		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "WRITE");
 		verify(storageProvider).writeFile(eq("foo.txt"), any(InputStream.class), eq(11L));
 	}
 
@@ -204,7 +203,6 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Moved to trash successfully"));
 
-		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "TRASH");
 		verify(storageProvider).trash("foo.txt");
 	}
 
@@ -221,7 +219,6 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Deleted file successfully"));
 
-		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "TRASH");
 		verify(storageProvider).delete("foo.txt");
 	}
 
@@ -329,7 +326,6 @@ class WorkspaceApiControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("File moved successfully"));
 
-		verify(snapshotProvider).createSnapshot(storageProvider, "old.txt", "MOVE");
 		verify(storageProvider).rename("old.txt", "new.txt");
 	}
 
@@ -508,7 +504,6 @@ class WorkspaceApiControllerTest {
 				.andExpect(jsonPath("$.message").value("Moved to trash successfully"))
 				.andExpect(jsonPath("$.path").value("foo.txt"));
 
-		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "TRASH");
 		verify(storageProvider).trash("foo.txt");
 	}
 

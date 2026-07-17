@@ -39,15 +39,7 @@ public class RelayTools {
 					.addTextContent("Error: McpTransportContext does not contain ServerRequest")
 					.build();
 		}
-		String authHeader = serverRequest.headers().firstHeader("Authorization");
-		if (authHeader == null || authHeader.isBlank()) {
-			log.error("Authorization header is missing in incoming request during relay call: {}", toolName);
-			return CallToolResult.builder()
-					.isError(true)
-					.addTextContent("Error: Authorization header is missing")
-					.build();
-		}
-		try (McpSyncClient client = relayMcpClientManager.createClient(authHeader)) {
+		try (McpSyncClient client = relayMcpClientManager.createClient(serverRequest)) {
 			return client.callTool(new CallToolRequest(toolName, arguments));
 		} catch (Exception e) {
 			log.error("Failed to relay tool call to downstream MCP server: " + toolName, e);

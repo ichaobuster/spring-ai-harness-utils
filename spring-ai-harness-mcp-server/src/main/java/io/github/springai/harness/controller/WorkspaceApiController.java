@@ -141,7 +141,6 @@ public class WorkspaceApiController {
 			throw new IllegalArgumentException("path must not be empty");
 		}
 		StorageProvider storage = getStorageProvider(request);
-		snapshotProvider.createSnapshot(storage, path, "WRITE");
 		try (InputStream is = file.getInputStream()) {
 			storage.writeFile(path, is, file.getSize());
 		}
@@ -157,7 +156,6 @@ public class WorkspaceApiController {
 		if (!storage.exists(path)) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Path not found: " + path));
 		}
-		snapshotProvider.createSnapshot(storage, path, "TRASH");
 		if (trash) {
 			storage.trash(path);
 			return ResponseEntity.ok(Map.of("message", "Moved to trash successfully", "path", path));
@@ -194,7 +192,6 @@ public class WorkspaceApiController {
 		if (!storage.exists(fromPath)) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Source path not found: " + fromPath));
 		}
-		snapshotProvider.createSnapshot(storage, fromPath, "MOVE");
 		storage.rename(fromPath, toPath);
 		return ResponseEntity.ok(Map.of("message", "File moved successfully", "fromPath", fromPath, "toPath", toPath));
 	}
@@ -230,7 +227,6 @@ public class WorkspaceApiController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND)
 					.body(Map.of("error", "Path not found: " + path));
 		}
-		snapshotProvider.createSnapshot(storage, path, "TRASH");
 		storage.trash(path);
 		return ResponseEntity.ok(Map.of("message", "Moved to trash successfully", "path", path));
 	}

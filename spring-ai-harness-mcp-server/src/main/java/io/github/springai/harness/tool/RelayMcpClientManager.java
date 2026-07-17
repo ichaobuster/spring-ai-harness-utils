@@ -1,5 +1,7 @@
 package io.github.springai.harness.tool;
 
+import io.github.springai.harness.auth.AuthenticationProvider;
+import io.github.springai.harness.auth.WorkspaceIdentity;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties.RelayProperties;
 import io.modelcontextprotocol.client.McpClient;
@@ -9,6 +11,7 @@ import io.modelcontextprotocol.spec.McpClientTransport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.function.ServerRequest;
 
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -29,19 +32,24 @@ public class RelayMcpClientManager {
 	private static final String ERR_MSG_CAN_RETRY = "Client failed to initialize by explicit API call";
 
 	private final HarnessMcpServerProperties properties;
+	private final AuthenticationProvider authenticationProvider;
 
-	public RelayMcpClientManager(HarnessMcpServerProperties properties) {
+	public RelayMcpClientManager(HarnessMcpServerProperties properties, AuthenticationProvider authenticationProvider) {
 		this.properties = properties;
+		this.authenticationProvider = authenticationProvider;
 	}
 
 	/**
 	 * Creates and initializes a new McpSyncClient instance for the user session.
 	 * Callers are responsible for closing the returned client to prevent resource leaks.
 	 */
-	public McpSyncClient createClient(String userAuthHeader) {
-		if (userAuthHeader == null || userAuthHeader.isBlank()) {
-			throw new IllegalArgumentException("User authorization header must not be empty");
+	public McpSyncClient createClient(ServerRequest serverRequest) {
+		if (serverRequest == null) {
+			throw new IllegalArgumentException("ServerRequest must not be null");
 		}
+
+		WorkspaceIdentity identity = authenticationProvider.authenticate(serverRequest);
+		String sessionId = identity.getSessionId();
 
 		RelayProperties relayProperties = properties.getRelay();
 		if (relayProperties == null || !relayProperties.isEnabled() || relayProperties.getUrl() == null || relayProperties.getUrl().isBlank()) {
@@ -49,8 +57,8 @@ public class RelayMcpClientManager {
 		}
 
 		HttpRequest.Builder httpRequestBuilder = HttpRequest.newBuilder();
-		// Set dynamic session ID from user's authorization header
-		httpRequestBuilder.header("x-agentrun-session-id", userAuthHeader.trim());
+		// Set dynamic session ID from system-agent-user
+		httpRequestBuilder.header("x-agentrun-session-id", sessionId);
 		// Set configured headers (map of static headers)
 		if (relayProperties.getHeaders() != null) {
 			relayProperties.getHeaders().forEach(httpRequestBuilder::header);

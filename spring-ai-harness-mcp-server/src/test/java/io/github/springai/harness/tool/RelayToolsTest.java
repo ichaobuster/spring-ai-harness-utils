@@ -51,10 +51,7 @@ class RelayToolsTest {
 	}
 
 	private void mockSuccessfulClientCall(String toolName, Map<String, Object> expectedArgs, CallToolResult expectedResult) {
-		ServerRequest.Headers headers = mock(ServerRequest.Headers.class);
-		when(serverRequest.headers()).thenReturn(headers);
-		when(headers.firstHeader("Authorization")).thenReturn("Bearer user-token-123");
-		when(relayMcpClientManager.createClient("Bearer user-token-123")).thenReturn(mcpSyncClient);
+		when(relayMcpClientManager.createClient(serverRequest)).thenReturn(mcpSyncClient);
 		when(mcpSyncClient.callTool(argThat(request ->
 				request.name().equals(toolName) && mapsAreEqual(request.arguments(), expectedArgs)
 		))).thenReturn(expectedResult);
@@ -412,28 +409,9 @@ class RelayToolsTest {
 	}
 
 	@Test
-	@DisplayName("Should return error result if Authorization header is missing")
-	void shouldReturnErrorWhenAuthHeaderMissing() {
-		ServerRequest.Headers headers = mock(ServerRequest.Headers.class);
-		when(serverRequest.headers()).thenReturn(headers);
-		when(headers.firstHeader("Authorization")).thenReturn(null);
-
-		CallToolResult result = relayTools.browserClose(transportContext);
-
-		assertThat(result.isError()).isTrue();
-		assertThat(result.content()).first()
-				.extracting(content -> ((io.modelcontextprotocol.spec.McpSchema.TextContent) content).text())
-				.asString()
-				.contains("Error: Authorization header is missing");
-	}
-
-	@Test
 	@DisplayName("Should return error result if downstream client call fails")
 	void shouldReturnErrorWhenDownstreamCallFails() {
-		ServerRequest.Headers headers = mock(ServerRequest.Headers.class);
-		when(serverRequest.headers()).thenReturn(headers);
-		when(headers.firstHeader("Authorization")).thenReturn("Bearer user-token-123");
-		when(relayMcpClientManager.createClient("Bearer user-token-123")).thenReturn(mcpSyncClient);
+		when(relayMcpClientManager.createClient(serverRequest)).thenReturn(mcpSyncClient);
 		when(mcpSyncClient.callTool(any(CallToolRequest.class))).thenThrow(new RuntimeException("Connection timeout"));
 
 		CallToolResult result = relayTools.browserClose(transportContext);
