@@ -271,12 +271,16 @@ Requires identity via `Authorization: {system}-{agent}-{user}` header.
 |-------------|------|-------------|
 | `GET` | `/api/v1/workspace/files?path=` | List workspace directory files |
 | `GET` | `/api/v1/workspace/files/content?path=` | Read/download file content |
+| `GET` | `/api/v1/workspace/files/download?path=` | Download file binary stream |
 | `POST` | `/api/v1/workspace/files/upload?path=` | Upload/write file (triggers auto pre-snapshot) |
 | `POST` | `/api/v1/workspace/files/move?fromPath=&toPath=` | Move/rename file or directory |
+| `POST` | `/api/v1/workspace/files/trash?path=` | Move file or directory to recycle bin |
+| `POST` | `/api/v1/workspace/directory?path=` | Create folder/directory |
 | `DELETE` | `/api/v1/workspace/files?path=&trash=true` | Delete or move to recycle bin |
 | `POST` | `/api/v1/workspace/trash/empty` | Empty the recycle bin (.trash/) |
 | `GET` | `/api/v1/workspace/snapshots?path=` | Query file snapshot history |
 | `POST` | `/api/v1/workspace/rewind/{snapshotId}` | One-click rollback to a specific snapshot |
+| `GET` | `/api/v1/workspace/quota` | Query remaining capacity and quota details |
 
 #### File Attachment Endpoints (`AttachmentController` - `/api/v1/workspace/attachments`)
 

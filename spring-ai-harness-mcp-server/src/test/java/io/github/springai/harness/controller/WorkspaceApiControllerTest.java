@@ -2,6 +2,7 @@ package io.github.springai.harness.controller;
 
 import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
+import io.github.springai.harness.storage.QuotaManager;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.github.springai.harness.service.WorkspaceSyncService;
@@ -16,7 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +48,9 @@ class WorkspaceApiControllerTest {
 
 	@Mock
 	private HarnessMcpServerProperties properties;
+
+	@Mock
+	private QuotaManager quotaManager;
 
 	@InjectMocks
 	private WorkspaceApiController controller;
@@ -390,4 +396,149 @@ class WorkspaceApiControllerTest {
 						.header("Authorization", "sys1-agent1-user1"))
 				.andExpect(status().isNotFound());
 	}
+
+	@Test
+	@DisplayName("Should download file successfully")
+	void shouldDownloadFileSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("foo.txt")).thenReturn(true);
+		when(storageProvider.isDirectory("foo.txt")).thenReturn(false);
+		when(storageProvider.getInfo("foo.txt")).thenReturn(
+				new StorageProvider.Info("foo.txt", true, false, 11L, 1000L)
+		);
+		InputStream testStream = new ByteArrayInputStream("Hello World".getBytes());
+		when(storageProvider.readStream("foo.txt")).thenReturn(testStream);
+
+		mockMvc.perform(get("/api/v1/workspace/files/download")
+						.param("path", "foo.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Content-Disposition", "attachment; filename=\"foo.txt\"; filename*=UTF-8''foo.txt"))
+				.andExpect(content().contentType("application/octet-stream"))
+				.andExpect(content().string("Hello World"));
+	}
+
+	@Test
+	@DisplayName("Should return 404 when downloading missing file")
+	void shouldReturn404WhenDownloadingMissingFile() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+		mockMvc.perform(get("/api/v1/workspace/files/download")
+						.param("path", "missing.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error").value("File not found: missing.txt"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when downloading directory")
+	void shouldReturn400WhenDownloadingDirectory() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("some-dir")).thenReturn(true);
+		when(storageProvider.isDirectory("some-dir")).thenReturn(true);
+
+		mockMvc.perform(get("/api/v1/workspace/files/download")
+						.param("path", "some-dir")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("Path is a directory: some-dir"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when download path is empty")
+	void shouldReturn400WhenDownloadPathIsEmpty() throws Exception {
+		mockMvc.perform(get("/api/v1/workspace/files/download")
+						.param("path", "")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("path must not be empty"));
+	}
+
+	@Test
+	@DisplayName("Should create directory successfully")
+	void shouldCreateDirectorySuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+
+		mockMvc.perform(post("/api/v1/workspace/directory")
+						.param("path", "new-dir")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Directory created successfully"))
+				.andExpect(jsonPath("$.path").value("new-dir"));
+
+		verify(storageProvider).createDirectory("new-dir");
+	}
+
+	@Test
+	@DisplayName("Should return 400 when creating directory with empty path")
+	void shouldReturn400WhenCreatingDirectoryWithEmptyPath() throws Exception {
+		mockMvc.perform(post("/api/v1/workspace/directory")
+						.param("path", "")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("path must not be empty"));
+	}
+
+	@Test
+	@DisplayName("Should move file/folder to trash successfully")
+	void shouldMoveFileOrFolderToTrashSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("foo.txt")).thenReturn(true);
+
+		mockMvc.perform(post("/api/v1/workspace/files/trash")
+						.param("path", "foo.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Moved to trash successfully"))
+				.andExpect(jsonPath("$.path").value("foo.txt"));
+
+		verify(snapshotProvider).createSnapshot(storageProvider, "foo.txt", "TRASH");
+		verify(storageProvider).trash("foo.txt");
+	}
+
+	@Test
+	@DisplayName("Should return 404 when trashing non-existent file/folder")
+	void shouldReturn404WhenTrashingNonExistentFile() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		when(storageProvider.exists("missing.txt")).thenReturn(false);
+
+		mockMvc.perform(post("/api/v1/workspace/files/trash")
+						.param("path", "missing.txt")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error").value("Path not found: missing.txt"));
+	}
+
+	@Test
+	@DisplayName("Should return 400 when trashing with empty path")
+	void shouldReturn400WhenTrashingWithEmptyPath() throws Exception {
+		mockMvc.perform(post("/api/v1/workspace/files/trash")
+						.param("path", "")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("path must not be empty"));
+	}
+
+	@Test
+	@DisplayName("Should query quota details successfully")
+	void shouldQueryQuotaDetailsSuccessfully() throws Exception {
+		when(storageProviderFactory.getStorageProvider(any())).thenReturn(storageProvider);
+		
+		HarnessMcpServerProperties.QuotaProperties quotaProps = new HarnessMcpServerProperties.QuotaProperties();
+		quotaProps.setEnabled(true);
+		quotaProps.setMaxBytes(1000L);
+		when(properties.getQuota()).thenReturn(quotaProps);
+		
+		when(quotaManager.getUsedBytes(storageProvider)).thenReturn(400L);
+
+		mockMvc.perform(get("/api/v1/workspace/quota")
+						.header("Authorization", "sys1-agent1-user1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.usedBytes").value(400))
+				.andExpect(jsonPath("$.maxBytes").value(1000))
+				.andExpect(jsonPath("$.remainingBytes").value(600))
+				.andExpect(jsonPath("$.enabled").value(true));
+	}
 }
+

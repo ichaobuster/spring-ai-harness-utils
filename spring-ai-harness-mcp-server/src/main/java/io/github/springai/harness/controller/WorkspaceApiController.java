@@ -6,6 +6,7 @@ import io.github.springai.harness.service.WorkspaceSyncService;
 import io.github.springai.harness.autoconfig.HarnessMcpServerProperties;
 import io.github.springai.harness.snapshot.SnapshotInfo;
 import io.github.springai.harness.snapshot.SnapshotProvider;
+import io.github.springai.harness.storage.QuotaManager;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.storage.StorageProviderFactory;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -13,11 +14,17 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.function.ServerRequest;
 
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +52,9 @@ public class WorkspaceApiController {
 
 	@Autowired
 	private HarnessMcpServerProperties properties;
+
+	@Autowired
+	private QuotaManager quotaManager;
 
 	protected StorageProvider getStorageProvider(HttpServletRequest request) {
 		ServerRequest serverRequest = ServerRequest.create(request, Collections.emptyList());
@@ -79,6 +89,43 @@ public class WorkspaceApiController {
 		String content = storage.readString(path);
 		return ResponseEntity.ok(content);
 	}
+
+	@GetMapping("/files/download")
+	public ResponseEntity<?> downloadFile(
+			HttpServletRequest request,
+			@RequestParam("path") String path) throws Exception {
+		if (path == null || path.isBlank()) {
+			throw new IllegalArgumentException("path must not be empty");
+		}
+		StorageProvider storage = getStorageProvider(request);
+		if (!storage.exists(path)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(Map.of("error", "File not found: " + path));
+		}
+		if (storage.isDirectory(path)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(Map.of("error", "Path is a directory: " + path));
+		}
+
+		StorageProvider.Info info = storage.getInfo(path);
+		String filename = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
+		if (filename.isBlank()) {
+			filename = "download";
+		}
+
+		InputStream is = storage.readStream(path);
+		InputStreamResource resource = new InputStreamResource(is);
+
+		String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+				.replace("+", "%20");
+
+		return ResponseEntity.ok()
+				.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"; filename*=UTF-8''" + encodedFilename)
+				.contentType(MediaType.APPLICATION_OCTET_STREAM)
+				.contentLength(info.size())
+				.body(resource);
+	}
+
 
 	@PostMapping("/files/upload")
 	public ResponseEntity<?> uploadFile(
@@ -148,6 +195,51 @@ public class WorkspaceApiController {
 		storage.emptyTrash();
 		return ResponseEntity.ok(Map.of("message", "Trash emptied successfully"));
 	}
+
+	@PostMapping("/directory")
+	public ResponseEntity<?> createDirectory(
+			HttpServletRequest request,
+			@RequestParam("path") String path) throws Exception {
+		if (path == null || path.isBlank()) {
+			throw new IllegalArgumentException("path must not be empty");
+		}
+		StorageProvider storage = getStorageProvider(request);
+		storage.createDirectory(path);
+		return ResponseEntity.ok(Map.of("message", "Directory created successfully", "path", path));
+	}
+
+	@PostMapping("/files/trash")
+	public ResponseEntity<?> trashFile(
+			HttpServletRequest request,
+			@RequestParam("path") String path) throws Exception {
+		if (path == null || path.isBlank()) {
+			throw new IllegalArgumentException("path must not be empty");
+		}
+		StorageProvider storage = getStorageProvider(request);
+		if (!storage.exists(path)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(Map.of("error", "Path not found: " + path));
+		}
+		snapshotProvider.createSnapshot(storage, path, "TRASH");
+		storage.trash(path);
+		return ResponseEntity.ok(Map.of("message", "Moved to trash successfully", "path", path));
+	}
+
+	@GetMapping("/quota")
+	public ResponseEntity<?> getQuota(HttpServletRequest request) throws Exception {
+		StorageProvider storage = getStorageProvider(request);
+		long usedBytes = quotaManager.getUsedBytes(storage);
+		long maxBytes = properties.getQuota().getMaxBytes();
+		long remainingBytes = Math.max(0L, maxBytes - usedBytes);
+		return ResponseEntity.ok(Map.of(
+				"usedBytes", usedBytes,
+				"maxBytes", maxBytes,
+				"remainingBytes", remainingBytes,
+				"enabled", properties.getQuota().isEnabled()
+		));
+	}
+
+
 
 	@PostMapping("/sync")
 	public void syncWorkspace(
