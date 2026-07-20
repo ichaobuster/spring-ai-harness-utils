@@ -10,9 +10,9 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>spring-ai-harness-mcp-server</artifactId>
-    <name>Spring AI Harness MCP Server</name>
-    <description>Spring AI Harness MCP Server</description>
+    <artifactId>mcp-tool-gateway</artifactId>
+    <name>MCP Tool Gateway</name>
+    <description>Stateless MCP Server for dynamic tool listing and HTTP bypass tool invocation</description>
 
     <licenses>
         <license>
@@ -35,15 +35,13 @@
     <dependencies>
 
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>com.aliyun.oss</groupId>
-            <artifactId>aliyun-sdk-oss</artifactId>
-            <version>3.18.5</version>
-            <optional>true</optional>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <dependency>
@@ -52,28 +50,6 @@
             <version>1.18.46</version>
             <scope>provided</scope>
         </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-tracing-bridge-otel</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-exporter-otlp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-pdf-document-reader</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-tika-document-reader</artifactId>
-        </dependency>
-
 
         <!-- Test dependencies -->
         <dependency>
@@ -100,7 +76,6 @@
             <version>3.25.3</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -110,13 +85,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>

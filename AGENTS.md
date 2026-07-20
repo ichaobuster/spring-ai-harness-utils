@@ -9,9 +9,10 @@
 
 ## Root Architecture Overview
 
-The project consists of two core sub-modules:
+The project consists of three core sub-modules:
 1. **`spring-ai-harness-mcp-server`**: A stateless server built on Spring Boot & Spring AI MCP, providing workspace-isolated secure path filtering, Snapshot creation & version rollback, streaming multimedia file processing, and pluggable OTel tracing.
 2. **`spring-ai-harness-server-frontend`**: A management Web console built with React 18 + Ant Design 5 + Vite, featuring a Windows Explorer-style file manager and an MCP Client debugger.
+3. **`mcp-tool-gateway`**: A stateless MCP gateway server built on Spring Boot that supports configurable header extraction, authentication validation, dynamic tool listing (filtered by headers), and transparent HTTP bypass tool invocation.
 
 ### Unified Design Principles & Security Standards
 - **No hardcoded FQCNs in code**: Classes must be imported via explicit `import` statements. Using full `packageName.ClassName` paths in method signatures, type declarations, or `new` instantiations is strictly forbidden.
@@ -149,15 +150,44 @@ During local development (`npm run dev`), Vite's dev proxy transparently routes 
 
 ---
 
-## 3. Global Build & Test Commands
+## 3. Gateway Module (mcp-tool-gateway)
 
-### Build & Test Backend
+### 3.1 Tech Stack & Core Mechanisms
+- **Core Framework**: Spring Boot 3.5.x, Java 17, and pure Jackson-based JSON-RPC handling (without static registry dependency).
+- **Core Features**:
+  * Configurable header extraction via `spring.ai.mcp.tool-gateway.forward-headers`.
+  * Gateway Authentication via `GatewayAuthProvider` (returns HTTP 401 on auth failure).
+  * Header-based permission filtering via `ToolPermissionFilter` to restrict tool access.
+  * HTTP Bypass forwarding using `RestClient` with dynamic URL path parameters and header forwarding.
+
+### 3.2 Required Configuration
+```properties
+# Standalone execution port
+server.port=8090
+
+# Gateway Enable/Disable (default: true)
+spring.ai.mcp.tool-gateway.enabled=true
+
+# Tool catalog classpath registry file
+spring.ai.mcp.tool-gateway.catalog-path=classpath:tool-catalog.json
+
+# Extract and forward headers (comma separated)
+spring.ai.mcp.tool-gateway.forward-headers=Authorization,X-Tenant-Id
+```
+
+---
+
+## 4. Global Build & Test Commands
+
+### Build & Test Backend Modules
 ```bash
-# Compile backend
+# Compile backend modules
 ./mvnw compile -pl spring-ai-harness-mcp-server
+./mvnw compile -pl mcp-tool-gateway
 
-# Run backend unit tests (all tests must be fully mocked, no physical OSS connection)
+# Run backend unit tests
 ./mvnw test -pl spring-ai-harness-mcp-server
+./mvnw test -pl mcp-tool-gateway
 ```
 
 ### Build & Run Frontend
@@ -180,7 +210,7 @@ npm run build
 
 ---
 
-## 4. AI Assistant Development Guidelines & Quality Guardrails
+## 5. AI Assistant Development Guidelines & Quality Guardrails
 
 1. **Safety first (Surgical Edits)**: When modifying existing components or code logic, make minimal "surgical" changes. Preserve existing formatting and indentation. Never introduce file system paths that escape workspace isolation boundaries.
 2. **Test alongside development**: After adding any new method or logic fix, immediately run the full unit test suite (`./mvnw test`) to confirm no regression has occurred.

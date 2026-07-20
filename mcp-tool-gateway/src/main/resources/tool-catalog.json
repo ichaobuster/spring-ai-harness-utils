@@ -1,0 +1,146 @@
+[
+  {
+    "name": "weather_query",
+    "description": "Query the current weather and forecast for a given city.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The name of the city, e.g. Beijing, London, New York."
+        }
+      },
+      "required": ["city"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "string"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "humidity": {
+          "type": "string"
+        }
+      }
+    },
+    "annotations": {
+      "title": "Weather Query Tool",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "httpEndpoint": {
+      "url": "https://api.example.com/weather?city={city}",
+      "method": "GET",
+      "headers": {
+        "X-App-Id": "gateway-weather-v1"
+      },
+      "timeoutSeconds": 10,
+      "forwardAuthHeader": false
+    },
+    "tags": ["public", "weather"],
+    "enabled": true
+  },
+  {
+    "name": "text_translate",
+    "description": "Translate text from source language to target language.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The text content to translate."
+        },
+        "targetLanguage": {
+          "type": "string",
+          "description": "The target language code, e.g., zh, en, ja, fr."
+        },
+        "sourceLanguage": {
+          "type": "string",
+          "description": "The source language code, e.g., auto, en, zh."
+        }
+      },
+      "required": ["text", "targetLanguage"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "translatedText": {
+          "type": "string"
+        },
+        "detectedSourceLanguage": {
+          "type": "string"
+        }
+      }
+    },
+    "annotations": {
+      "title": "Text Translation Tool",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "httpEndpoint": {
+      "url": "https://api.example.com/translate",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "timeoutSeconds": 15,
+      "forwardAuthHeader": false
+    },
+    "tags": ["public", "nlp"],
+    "enabled": true
+  },
+  {
+    "name": "database_execute",
+    "description": "Execute a database SQL query or command. Restricted to administrators.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string",
+          "description": "The SQL query to execute."
+        },
+        "database": {
+          "type": "string",
+          "description": "The database name to run against."
+        }
+      },
+      "required": ["sql", "database"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "rowsAffected": {
+          "type": "integer"
+        },
+        "results": {
+          "type": "array"
+        }
+      }
+    },
+    "annotations": {
+      "title": "Database Execution Tool",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "httpEndpoint": {
+      "url": "https://api.example.com/db/execute",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "timeoutSeconds": 60,
+      "forwardAuthHeader": true
+    },
+    "tags": ["admin", "database"],
+    "enabled": true
+  }
+]

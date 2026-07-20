@@ -64,6 +64,7 @@
         <module>spring-ai-harness-utils-bom</module>
         <module>spring-ai-harness-mcp-server</module>
         <module>examples</module>
+        <module>mcp-tool-gateway</module>
     </modules>
 
     <build>
