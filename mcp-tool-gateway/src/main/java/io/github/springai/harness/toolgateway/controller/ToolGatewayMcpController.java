@@ -104,32 +104,20 @@ public class ToolGatewayMcpController {
 	}
 
 	private Map<String, Object> handleInitialize(Object id) {
-		Map<String, Object> result = new HashMap<>();
-		result.put("protocolVersion", "2025-03-26");
-		result.put("capabilities", Map.of("tools", Map.of("listChanged", false)));
-		result.put("serverInfo", Map.of(
-				"name", properties.getServerName(),
-				"version", properties.getServerVersion()
-		));
-
-		Map<String, Object> response = new HashMap<>();
-		response.put("jsonrpc", "2.0");
-		response.put("id", id);
-		response.put("result", result);
-		return response;
+		Map<String, Object> result = Map.of(
+				"protocolVersion", "2025-03-26",
+				"capabilities", Map.of("tools", Map.of("listChanged", false)),
+				"serverInfo", Map.of(
+						"name", properties.getServerName(),
+						"version", properties.getServerVersion()
+				)
+		);
+		return buildSuccessResponse(id, result);
 	}
 
 	private Map<String, Object> handleToolsList(Object id, Map<String, String> headers) {
 		List<Map<String, Object>> tools = catalogService.listTools(headers);
-		
-		Map<String, Object> result = new HashMap<>();
-		result.put("tools", tools);
-
-		Map<String, Object> response = new HashMap<>();
-		response.put("jsonrpc", "2.0");
-		response.put("id", id);
-		response.put("result", result);
-		return response;
+		return buildSuccessResponse(id, Map.of("tools", tools));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -147,22 +135,22 @@ public class ToolGatewayMcpController {
 		Map<String, Object> arguments = (Map<String, Object>) params.get("arguments");
 		Map<String, Object> callResult = invocationService.invokeTool(name, arguments, headers);
 
-		Map<String, Object> response = new HashMap<>();
+		return ResponseEntity.ok(buildSuccessResponse(id, callResult));
+	}
+
+	private Map<String, Object> buildSuccessResponse(Object id, Object result) {
+		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("jsonrpc", "2.0");
 		response.put("id", id);
-		response.put("result", callResult);
-		return ResponseEntity.ok(response);
+		response.put("result", result);
+		return response;
 	}
 
 	private Map<String, Object> buildErrorResponse(Object id, int code, String message) {
-		Map<String, Object> error = new HashMap<>();
-		error.put("code", code);
-		error.put("message", message);
-
-		Map<String, Object> response = new HashMap<>();
+		Map<String, Object> response = new LinkedHashMap<>();
 		response.put("jsonrpc", "2.0");
 		response.put("id", id);
-		response.put("error", error);
+		response.put("error", Map.of("code", code, "message", message));
 		return response;
 	}
 }
