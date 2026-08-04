@@ -127,11 +127,26 @@ public class AliyunOssStorage implements StorageProvider {
 	}
 
 	@Override
+	public InputStream readStream(String path) throws IOException {
+		OSSObject ossObject = this.ossClient.getObject(this.bucketName, getFullKey(path));
+		return ossObject.getObjectContent();
+	}
+
+	@Override
 	public void writeString(String path, String content) throws IOException {
 		byte[] bytes = (content != null ? content : "").getBytes(StandardCharsets.UTF_8);
 		try (InputStream is = new ByteArrayInputStream(bytes)) {
 			this.ossClient.putObject(this.bucketName, getFullKey(path), is);
 		}
+	}
+
+	@Override
+	public void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		ObjectMetadata metadata = new ObjectMetadata();
+		if (contentLength >= 0) {
+			metadata.setContentLength(contentLength);
+		}
+		this.ossClient.putObject(this.bucketName, getFullKey(path), inputStream, metadata);
 	}
 
 	@Override

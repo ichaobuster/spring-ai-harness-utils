@@ -57,4 +57,18 @@ class SkillUtilTest {
 		assertThat(skill.basePath()).isEqualTo("test-skills" + File.separator + "skill-a");
 		assertThat(skill.content()).contains("This is the test skill content.");
 	}
+
+	@Test
+	@DisplayName("should load skills from classpath")
+	void loadClassPath() {
+		List<Skill> skills = SkillUtil.loadClassPath();
+		assertThat(skills).isNotNull();
+	}
+
+	@Test
+	@DisplayName("should load skills from classpath with specific pattern")
+	void loadClassPathWithPattern() {
+		List<Skill> skills = SkillUtil.loadClassPath("classpath*:**/SKILL.md");
+		assertThat(skills).isNotNull();
+	}
 }

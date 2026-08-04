@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -89,6 +90,11 @@ public class LocalFileStorage implements StorageProvider {
 	}
 
 	@Override
+	public InputStream readStream(String path) throws IOException {
+		return Files.newInputStream(resolveSafePath(path));
+	}
+
+	@Override
 	public void writeString(String path, String content) throws IOException {
 		Path target = resolveSafePath(path);
 		Path parent = target.getParent();
@@ -96,6 +102,16 @@ public class LocalFileStorage implements StorageProvider {
 			Files.createDirectories(parent);
 		}
 		Files.writeString(target, content != null ? content : "", StandardCharsets.UTF_8);
+	}
+
+	@Override
+	public void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		Path target = resolveSafePath(path);
+		Path parent = target.getParent();
+		if (parent != null && !Files.exists(parent)) {
+			Files.createDirectories(parent);
+		}
+		Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
 	}
 
 	@Override

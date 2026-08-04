@@ -59,6 +59,11 @@
 				<artifactId>spring-ai-harness-utils</artifactId>
 				<version>${revision}</version>
 			</dependency>
+			<dependency>
+				<groupId>io.github.spring-ai.harness</groupId>
+				<artifactId>spring-ai-skills</artifactId>
+				<version>${revision}</version>
+			</dependency>
 		</dependencies>
 
 	</dependencyManagement>

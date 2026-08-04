@@ -61,6 +61,7 @@
 
     <modules>
         <module>spring-ai-harness-utils</module>
+        <module>spring-ai-skills</module>
         <module>spring-ai-harness-utils-bom</module>
         <module>spring-ai-harness-mcp-server</module>
         <module>examples</module>

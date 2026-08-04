@@ -12,6 +12,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -490,6 +491,26 @@ class LocalFileStorageTest {
 			}
 
 			@Test
+			@DisplayName("Should count matches across multiple files")
+			void shouldCountMatchesAcrossMultipleFiles() throws IOException {
+				// Given
+				Path file1 = tempDir.resolve("file1.txt");
+				Path file2 = tempDir.resolve("file2.txt");
+				Files.writeString(file1, "Error\nError\nError", StandardCharsets.UTF_8);
+				Files.writeString(file2, "Error", StandardCharsets.UTF_8);
+
+				// When
+				List<String> result = storage.grep("Error", "", null, StorageProvider.GrepOutputMode.count, null,
+						null, null, null, null, null, null, null);
+
+				// Then
+				assertThat(result).anyMatch(e -> e.contains(file1.getFileName().toString()));
+				assertThat(result).anyMatch(e -> e.contains(file2.getFileName().toString()));
+				assertThat(result).anyMatch(e -> e.contains(": 3")); // 3 matches in file1
+				assertThat(result).anyMatch(e -> e.contains(": 1")); // 1 match in file2
+			}
+
+			@Test
 			@DisplayName("Should show content with line numbers in content mode")
 			void shouldShowContentWithLineNumbers() throws IOException {
 				// Given
@@ -886,6 +907,36 @@ class LocalFileStorageTest {
 				assertThat(result).anyMatch(e -> e.contains(": 1")); // 1 match in file2
 			}
 
+		}
+	}
+
+	@Nested
+	@DisplayName("Stream and File Write Operations")
+	class StreamAndFileWriteTests {
+
+		@Test
+		@DisplayName("readStream reads content correctly")
+		void readStream() throws IOException {
+			Path file = tempDir.resolve("stream.txt");
+			Files.writeString(file, "hello stream", StandardCharsets.UTF_8);
+			try (InputStream is = storage.readStream("stream.txt")) {
+				String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+				assertThat(content).isEqualTo("hello stream");
+			}
+		}
+
+		@Test
+		@DisplayName("writeFile writes binary stream correctly")
+		void writeFile() throws IOException {
+			byte[] data = "binary content".getBytes(StandardCharsets.UTF_8);
+			try (InputStream is = new ByteArrayInputStream(data)) {
+				storage.writeFile("output/binary.bin", is, data.length);
+			}
+			assertThat(storage.exists("output/binary.bin")).isTrue();
+			try (InputStream is = storage.readStream("output/binary.bin")) {
+				byte[] readData = is.readAllBytes();
+				assertThat(readData).isEqualTo(data);
+			}
 		}
 	}
 

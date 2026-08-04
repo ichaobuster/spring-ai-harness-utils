@@ -5,6 +5,7 @@ import org.springframework.util.StringUtils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.util.ArrayList;
@@ -221,6 +222,16 @@ public interface StorageProvider {
 	List<String> readAllLines(String path) throws IOException;
 
 	/**
+	 * Reads a file as raw InputStream for binary streaming.
+	 * Caller is responsible for closing the returned stream.
+	 *
+	 * @param path the file path relative to the storage.
+	 * @return the raw InputStream of the file content.
+	 * @throws IOException if an error occurs.
+	 */
+	InputStream readStream(String path) throws IOException;
+
+	/**
 	 * Writes a string to a file. Overwrites if it exists.
 	 *
 	 * @param path    the file path relative to the storage.
@@ -228,6 +239,18 @@ public interface StorageProvider {
 	 * @throws IOException if an error occurs.
 	 */
 	void writeString(String path, String content) throws IOException;
+
+	/**
+	 * Writes binary data from an InputStream to a file. Overwrites if it exists.
+	 *
+	 * @param path          the file path relative to the storage.
+	 * @param inputStream   the input stream to write.
+	 * @param contentLength the content length in bytes (for OSS metadata; -1 if unknown).
+	 * @throws IOException if an error occurs.
+	 */
+	default void writeFile(String path, InputStream inputStream, long contentLength) throws IOException {
+		throw new UnsupportedOperationException("This storage implementation does not support binary writes");
+	}
 
 	/**
 	 * Deletes a file or directory (recursively) from the memory store.

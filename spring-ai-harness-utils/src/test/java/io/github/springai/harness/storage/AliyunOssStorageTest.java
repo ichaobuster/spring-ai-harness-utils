@@ -16,6 +16,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -901,6 +902,35 @@ class AliyunOssStorageTest {
 				}
 
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Stream and File Write Operations")
+	class StreamAndFileWriteTests {
+
+		@Test
+		@DisplayName("readStream returns object stream from OSS")
+		void readStream() throws IOException {
+			OSSObject ossObject = new OSSObject();
+			byte[] content = "hello oss stream".getBytes(StandardCharsets.UTF_8);
+			ossObject.setObjectContent(new ByteArrayInputStream(content));
+			when(ossClient.getObject(eq(bucketName), eq(prefix + "stream.txt"))).thenReturn(ossObject);
+
+			try (InputStream is = storage.readStream("stream.txt")) {
+				String text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+				assertThat(text).isEqualTo("hello oss stream");
+			}
+		}
+
+		@Test
+		@DisplayName("writeFile uploads binary stream to OSS")
+		void writeFile() throws IOException {
+			byte[] data = "binary data".getBytes(StandardCharsets.UTF_8);
+			try (InputStream is = new ByteArrayInputStream(data)) {
+				storage.writeFile("binary.bin", is, data.length);
+			}
+			verify(ossClient).putObject(eq(bucketName), eq(prefix + "binary.bin"), any(InputStream.class), any(ObjectMetadata.class));
 		}
 	}
 
