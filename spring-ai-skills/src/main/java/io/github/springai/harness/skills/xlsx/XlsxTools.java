@@ -428,12 +428,17 @@ public class XlsxTools {
 
                         // Check for error values
                         String cellCoord = sheetName + "!" + cell.getAddress().formatAsString();
-                        if (cell.getCellType() == CellType.ERROR) {
+                        CellType targetType = cell.getCellType();
+                        if (targetType == CellType.FORMULA) {
+                            targetType = cell.getCachedFormulaResultType();
+                        }
+
+                        if (targetType == CellType.ERROR) {
                             byte errCode = cell.getErrorCellValue();
                             String errStr = FormulaErrorName(errCode);
                             errorLocationsMap.computeIfAbsent(errStr, k -> new ArrayList<>()).add(cellCoord);
                             totalErrors++;
-                        } else if (cell.getCellType() == CellType.STRING) {
+                        } else if (targetType == CellType.STRING) {
                             String strVal = cell.getStringCellValue();
                             for (String errStr : EXCEL_ERRORS) {
                                 if (strVal != null && strVal.contains(errStr)) {

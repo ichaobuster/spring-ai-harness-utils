@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -1444,6 +1445,66 @@ class AliyunOssStorageTest {
 
 			verify(ossClient, never()).deleteObject(any(), any());
 			verify(ossClient, never()).deleteObjects(any());
+		}
+	}
+
+	@Nested
+	@DisplayName("Stream and File Write Operations")
+	class StreamAndFileWriteTests {
+
+		@Test
+		@DisplayName("readStream returns object stream from OSS")
+		void readStream() throws IOException {
+			OSSObject ossObject = new OSSObject();
+			byte[] content = "hello oss stream".getBytes(StandardCharsets.UTF_8);
+			ossObject.setObjectContent(new ByteArrayInputStream(content));
+			when(ossClient.getObject(eq(bucketName), eq(prefix + "stream.txt"))).thenReturn(ossObject);
+
+			try (InputStream is = storage.readStream("stream.txt")) {
+				String text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+				assertThat(text).isEqualTo("hello oss stream");
+			}
+		}
+
+		@Test
+		@DisplayName("readStream throws RuntimeException on OSS failure")
+		void readStreamFailure() {
+			when(ossClient.getObject(eq(bucketName), eq(prefix + "missing.txt"))).thenThrow(new RuntimeException("OSS Error"));
+
+			assertThatThrownBy(() -> storage.readStream("missing.txt"))
+					.isInstanceOf(RuntimeException.class)
+					.hasMessageContaining("OSS Error");
+		}
+
+		@Test
+		@DisplayName("readStream rejects absolute path")
+		void readStreamAbsolute() {
+			assertThatThrownBy(() -> storage.readStream("/absolute.txt"))
+					.isInstanceOf(SecurityException.class);
+		}
+
+		@Test
+		@DisplayName("writeFile uploads binary stream to OSS")
+		void writeFile() throws IOException {
+			byte[] data = "binary data".getBytes(StandardCharsets.UTF_8);
+			try (InputStream is = new ByteArrayInputStream(data)) {
+				storage.writeFile("binary.bin", is, data.length);
+			}
+			verify(ossClient).putObject(eq(bucketName), eq(prefix + "binary.bin"), any(InputStream.class), any(ObjectMetadata.class));
+		}
+
+		@Test
+		@DisplayName("writeFile throws RuntimeException on OSS error")
+		void writeFileFailure() {
+			doThrow(new RuntimeException("Put Object Error"))
+					.when(ossClient).putObject(eq(bucketName), eq(prefix + "fail.bin"), any(InputStream.class), any(ObjectMetadata.class));
+
+			byte[] data = "data".getBytes(StandardCharsets.UTF_8);
+			ByteArrayInputStream is = new ByteArrayInputStream(data);
+
+			assertThatThrownBy(() -> storage.writeFile("fail.bin", is, data.length))
+					.isInstanceOf(RuntimeException.class)
+					.hasMessageContaining("Put Object Error");
 		}
 	}
 }

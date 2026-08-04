@@ -4,16 +4,27 @@ import io.github.springai.harness.storage.LocalFileStorage;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.tool.SkillsTool;
 import io.github.springai.harness.util.SkillUtil;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class XlsxToolsTest {
 
@@ -150,5 +161,178 @@ class XlsxToolsTest {
         assertThat(xlsxSkill).isNotNull();
         assertThat(xlsxSkill.frontMatter()).containsKey("tool-calls");
         assertThat(xlsxSkill.frontMatter().get("tool-calls").toString()).contains("readXlsxPreview");
+    }
+
+    // --- Branch Coverage Tests ---
+
+    @Test
+    void testCreateXlsxEmptyAndNullSheets() {
+        assertThat(xlsxTools.createXlsx("file.xlsx", null)).contains("Error: sheets parameter cannot be empty.");
+        assertThat(xlsxTools.createXlsx("file.xlsx", List.of())).contains("Error: sheets parameter cannot be empty.");
+    }
+
+    @Test
+    void testEditXlsxCellsEmptyAndNullSheets() {
+        String file = "exist_edit.xlsx";
+        xlsxTools.createXlsx(file, List.of(new SheetSpec("Sheet1", List.of(), null, null, null)));
+        assertThat(xlsxTools.editXlsxCells(file, null)).contains("Error: sheets parameter cannot be empty.");
+        assertThat(xlsxTools.editXlsxCells(file, List.of())).contains("Error: sheets parameter cannot be empty.");
+    }
+
+    @Test
+    void testValidationFileNotExistsAndTooLarge() throws IOException {
+        assertThatThrownBy(() -> xlsxTools.readXlsxPreview("non_existent.xlsx", 10))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("File does not exist in storage");
+
+        StorageProvider mockProvider = mock(StorageProvider.class);
+        when(mockProvider.exists("huge.xlsx")).thenReturn(true);
+        when(mockProvider.getInfo("huge.xlsx")).thenReturn(new StorageProvider.Info("huge.xlsx", true, false, 60 * 1024 * 1024L, System.currentTimeMillis()));
+
+        XlsxTools toolsWithMock = XlsxTools.builder().storageProvider(mockProvider).build();
+        assertThatThrownBy(() -> toolsWithMock.readXlsxPreview("huge.xlsx", 10))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("File size exceeds 50MB safety limit");
+    }
+
+    @Test
+    void testPreviewEmptySheetAndRowHiding() {
+        String file = "preview_test.xlsx";
+        // Create empty sheet and a sheet with 15 rows
+        List<CellSpec> cells = List.of(
+                new CellSpec("A1", "Row 1", null, null, null),
+                new CellSpec("A15", "Row 15", null, null, null)
+        );
+        List<SheetSpec> sheets = List.of(
+                new SheetSpec("EmptySheet", List.of(), null, null, null),
+                new SheetSpec("DataSheet", cells, null, null, null)
+        );
+        xlsxTools.createXlsx(file, sheets);
+
+        // Test maxRowsPerSheet null (defaults to 10) & capping
+        String preview = xlsxTools.readXlsxPreview(file, null);
+        assertThat(preview).contains("*(Empty sheet)*");
+        assertThat(preview).contains("more rows hidden");
+
+        // Test maxRowsPerSheet > 50 capped at 50
+        String previewCapped = xlsxTools.readXlsxPreview(file, 100);
+        assertThat(previewCapped).contains("DataSheet");
+    }
+
+    @Test
+    void testReadXlsxSheetPaginationAndMissingSheet() {
+        String file = "read_sheet_test.xlsx";
+        List<SheetSpec> sheets = List.of(
+                new SheetSpec("SheetA", List.of(
+                        new CellSpec("A1", true, null, null, null),
+                        new CellSpec("A2", 12.345, null, null, null)
+                ), null, null, null)
+        );
+        xlsxTools.createXlsx(file, sheets);
+
+        // Non-existent sheet
+        String missingResult = xlsxTools.readXlsxSheet(file, "MissingSheet", 1, 10, false);
+        assertThat(missingResult).contains("Error: Sheet 'MissingSheet' not found");
+
+        // Invalid startRow (<=0) and null endRow
+        String result = xlsxTools.readXlsxSheet(file, "SheetA", -5, null, false);
+        assertThat(result).contains("A1: true");
+        assertThat(result).contains("A2: 12.345");
+    }
+
+    @Test
+    void testCreateXlsxStylesColorsHexAndRgb() {
+        String file = "styles_test.xlsx";
+        List<CellSpec> cells = List.of(
+                new CellSpec(null, "Skipped Cell", null, null, null), // null cellRef branch
+                new CellSpec("A1", "Text", null, new CellStyleSpec("Courier New", (short) 14, true, true, "#FF0000", "#FFFF00", "$#,##0", "RIGHT", "TOP"), "Comment 1"),
+                new CellSpec("B1", 99L, null, new CellStyleSpec(null, null, false, false, "0,128,0", "0,255,255", null, "INVALID_ALIGN", "BOTTOM"), null),
+                new CellSpec("C1", 45.67, null, new CellStyleSpec(null, null, false, false, null, null, null, "CENTER", "CENTER"), null)
+        );
+        List<SheetSpec> sheets = List.of(
+                new SheetSpec(null, cells, Map.of("A", 15), 1, 1) // null sheetName -> default "Sheet1"
+        );
+
+        String createResult = xlsxTools.createXlsx(file, sheets);
+        assertThat(createResult).contains("Successfully created XLSX file");
+
+        String preview = xlsxTools.readXlsxPreview(file, 10);
+        assertThat(preview).contains("Sheet: Sheet1");
+        assertThat(preview).contains("Text");
+    }
+
+    @Test
+    void testEditXlsxCellsDefaultSheetAndNullSheetName() {
+        String file = "edit_default.xlsx";
+        List<SheetSpec> initial = List.of(
+                new SheetSpec("Sheet1", List.of(new CellSpec("A1", "Init", null, null, null)), null, null, null)
+        );
+        xlsxTools.createXlsx(file, initial);
+
+        // Edit with null sheetName -> targets sheet 0
+        List<SheetSpec> edits = List.of(
+                new SheetSpec(null, List.of(
+                        new CellSpec(null, "Skip", null, null, null),
+                        new CellSpec("A1", "Updated Init", null, null, "New Comment"),
+                        new CellSpec("B1", "New Cell", null, null, null)
+                ), null, null, null),
+                new SheetSpec("CreatedSheet", List.of(new CellSpec("A1", "First", null, null, null)), null, null, null)
+        );
+
+        String editResult = xlsxTools.editXlsxCells(file, edits);
+        assertThat(editResult).contains("Successfully edited XLSX file");
+
+        String preview = xlsxTools.readXlsxPreview(file, 10);
+        assertThat(preview).contains("Updated Init");
+        assertThat(preview).contains("CreatedSheet");
+    }
+
+    @Test
+    void testEvaluateXlsxFormulasNoWriteBackAndVariousErrors() {
+        String file = "eval_errors.xlsx";
+        List<SheetSpec> sheets = List.of(
+                new SheetSpec("Errors", List.of(
+                        new CellSpec("A1", null, "=1/0", null, null),       // #DIV/0!
+                        new CellSpec("A2", null, "=SQRT(-1)", null, null),  // #NUM!
+                        new CellSpec("A3", "#REF!", null, null, null)       // String containing #REF!
+                ), null, null, null)
+        );
+        xlsxTools.createXlsx(file, sheets);
+
+        // Test evaluate writeBack = false
+        String evalResultNoWriteBack = xlsxTools.evaluateXlsxFormulas(file, false);
+        assertThat(evalResultNoWriteBack).contains("errors_found");
+        assertThat(evalResultNoWriteBack).contains("#DIV/0!");
+
+        // Test evaluate writeBack = null (defaults to true)
+        String evalResultDefaultWriteBack = xlsxTools.evaluateXlsxFormulas(file, null);
+        assertThat(evalResultDefaultWriteBack).contains("errors_found");
+    }
+
+    @Test
+    void testConvertCsvToXlsxTabDelimiterAndTypes() throws IOException {
+        String tsvFile = "data.tsv";
+        storageProvider.writeString(tsvFile, "ID\tActive\tRate\tLabel\n101\ttrue\t12.34\tSample\n102\tfalse\t50\tAnother\n");
+
+        String xlsxFile = "data_converted.xlsx";
+        String result = xlsxTools.convertCsvToXlsx(tsvFile, xlsxFile, "\t", null); // null sheetName -> defaults to "Data"
+        assertThat(result).contains("Successfully converted CSV to XLSX");
+        assertThat(storageProvider.exists(xlsxFile)).isTrue();
+
+        String preview = xlsxTools.readXlsxPreview(xlsxFile, 10);
+        assertThat(preview).contains("Sheet: Data");
+        assertThat(preview).contains("101");
+        assertThat(preview).contains("12.34");
+    }
+
+    @Test
+    void testConstructorsAndBuilderFallback() {
+        // Test no-arg constructor
+        XlsxTools noArg = new XlsxTools();
+        assertThat(noArg).isNotNull();
+
+        // Test null StorageProvider fallback
+        XlsxTools nullProvider = new XlsxTools(null);
+        assertThat(nullProvider).isNotNull();
     }
 }
