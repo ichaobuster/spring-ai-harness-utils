@@ -27,7 +27,9 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.ai.tool.annotation.Tool;
@@ -389,10 +391,10 @@ public class XlsxTools {
         }
     }
 
-    @Tool(name = "evaluateXlsxFormulas", description = "Recalculate all formulas in an Excel workbook using POI FormulaEvaluator and detect formula errors.")
+    @Tool(name = "evaluateXlsxFormulas", description = "Recalculate all formulas in an Excel workbook using POI FormulaEvaluator, update cached results without replacing formulas, and detect formula errors.")
     public String evaluateXlsxFormulas(
             @ToolParam(description = "Path to .xlsx file relative to storage") String filePath,
-            @ToolParam(description = "Whether to save evaluated formula results back to the file (default true)", required = false) Boolean writeBack) {
+            @ToolParam(description = "Whether to save the workbook with updated cached formula results back to storage while keeping formulas intact (default true)", required = false) Boolean writeBack) {
         validateFileExistsAndSize(filePath);
         boolean saveInPlace = writeBack == null || Boolean.TRUE.equals(writeBack);
 
@@ -409,6 +411,8 @@ public class XlsxTools {
                 errorLocationsMap.put(err, new ArrayList<>());
             }
 
+            // evaluateAll() updates cached formula results while keeping cells as FORMULA.
+            // Do NOT call evaluateInCell(): it replaces formulas with literal values.
             for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
                 Sheet sheet = workbook.getSheetAt(i);
                 String sheetName = sheet.getSheetName();
@@ -417,16 +421,9 @@ public class XlsxTools {
                     for (Cell cell : row) {
                         if (cell.getCellType() == CellType.FORMULA) {
                             totalFormulas++;
-                            if (saveInPlace) {
-                                try {
-                                    evaluator.evaluateInCell(cell);
-                                } catch (Exception e) {
-                                    log.debug("Formula evaluation failed for cell {}: {}", cell.getAddress(), e.getMessage());
-                                }
-                            }
                         }
 
-                        // Check for error values
+                        // Check for error values from cached formula results / string cells
                         String cellCoord = sheetName + "!" + cell.getAddress().formatAsString();
                         CellType targetType = cell.getCellType();
                         if (targetType == CellType.FORMULA) {
@@ -628,12 +625,17 @@ public class XlsxTools {
             if (Boolean.TRUE.equals(spec.italic())) {
                 font.setItalic(true);
             }
-            font.setColor(Font.COLOR_NORMAL);
+            if (spec.fontColorRgb() != null && !spec.fontColorRgb().isBlank()) {
+                XSSFColor fontColor = parseColor(spec.fontColorRgb());
+                if (fontColor != null && font instanceof XSSFFont xssfFont) {
+                    xssfFont.setColor(fontColor);
+                }
+            }
             style.setFont(font);
         }
 
         // Fill Color
-        if (spec.fillColorRgb() != null && !spec.fillColorRgb().isBlank() && style instanceof org.apache.poi.xssf.usermodel.XSSFCellStyle xssfStyle) {
+        if (spec.fillColorRgb() != null && !spec.fillColorRgb().isBlank() && style instanceof XSSFCellStyle xssfStyle) {
             XSSFColor color = parseColor(spec.fillColorRgb());
             if (color != null) {
                 xssfStyle.setFillForegroundColor(color);

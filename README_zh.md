@@ -11,6 +11,8 @@
 
 `spring-ai-harness-utils` 提供了一个统一的、安全的 **MCP (Model Context Protocol) Server**，用于替代 agent 内置的文件系统工具，实现工作区隔离、操作可审计以及版本回滚能力。通过禁用 agent 原生的文件操作并将其路由到本 MCP Server，实现 **一次开发，所有 agent 通用** 的安全文件访问方案。
 
+除 MCP Server 外，本仓库还提供可复用的 Spring AI 组件：上下文压缩 Advisor、基于 `StorageProvider` 的工具、classpath/工作区技能加载、HTTP MCP Tool Gateway，以及可执行的领域技能（例如电子表格工具）。
+
 ### 核心特性
 
 - **🔒 工作区隔离**：每个 agent 在阿里云 OSS 上的 `{system}-{agent}-{user}` 前缀内严格隔离运行。绝对路径（以 `/` 开头）会被直接拒绝并抛出 `SecurityException`。
@@ -18,8 +20,10 @@
 - **📸 快照与回滚**：自动前置操作快照，支持一键 `Rewind` 回滚。双重安全兜底机制确保可以撤销已执行的撤销操作。
 - **🖼️ 多媒体读取**：图片（PNG/JPG/JPEG）自动按比例缩放后以 MCP `ImageContent` Base64 格式返回；PDF 支持页码范围提取；Office 文档（DOCX/XLSX/PPTX）解析为纯文本。
 - **🔄 流式处理**：所有文件内容处理均通过 `FileContentProcessor` 以 `InputStream` 流式传输方式执行，有效防止处理大文件时的内存溢出（OOM）风险。
-- **🎯 Agent 技能系统**：支持工作区级 `skills/` 目录的 `SKILL.md` 自动发现，同时通过 MCP Tools 和 `skill://` URI Resources 双协议暴露。
-- **📊 可插拔可观测性**：可选的 OpenTelemetry 链路追踪，采用零运行开销的装饰器模式 —— 关闭时无任何性能损耗。
+- **🎯 Agent 技能系统**：支持工作区级 `skills/` 目录的 `SKILL.md` 自动发现，同时通过 MCP Tools 和 `skill://` URI Resources 双协议暴露；也可通过 `SkillUtil` 加载 classpath 技能。
+- **📊 电子表格技能（`spring-ai-skills`）**：基于 Apache POI 的 Spring AI `@Tool` 实现，支持通过 `StorageProvider` 创建、预览、编辑、公式检查与 CSV 转 Excel。
+- **🚪 MCP Tool Gateway**：无状态网关，支持鉴权、基于 Header 的工具目录过滤，以及将 tool call 透明转发到下游 HTTP API。
+- **📈 可插拔可观测性**：可选的 OpenTelemetry 链路追踪，采用零运行开销的装饰器模式 —— 关闭时无任何性能损耗。
 - **🌐 Web 管理控制台**：基于 React 18 + Ant Design 5 构建，提供 Windows 资源管理器风格的文件管理、拖拽操作及 MCP Client JSON-RPC 调试器。
 
 ## 模块结构
@@ -28,7 +32,9 @@
 |------|------|
 | `spring-ai-harness-mcp-server` | 核心 MCP Server，包含文件工具、技能系统、快照回滚及流式多媒体支持 |
 | `spring-ai-harness-server-frontend` | 基于 React 的 Web 管理控制台 |
-| `spring-ai-harness-utils` | 上下文压缩（Context Compact）Advisor，用于 agent 循环上下文管理 |
+| `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助与上下文压缩 Advisor |
+| `spring-ai-skills` | 以 Spring AI Tools 形式实现的可执行 Agent Skills（当前为 XLSX） |
+| `mcp-tool-gateway` | 无状态 MCP 网关：鉴权、权限过滤、HTTP Bypass 调用 |
 | `spring-ai-harness-utils-bom` | BOM（Bill of Materials）版本统一管理 |
 
 ## 架构概览
@@ -40,12 +46,17 @@ Agents (openclaw / hermes / qwenpaw / ...)
     ▼
 spring-ai-harness-mcp-server
     ├── FileSystemTools (@McpTool) ──► StorageProvider (接口)
-    │       Read / Write / Edit / ...       └── AliyunOssStorage (实现)
-    ├── SkillTools (@McpTool)                       │
-    │       ListSkills / ReadSkill          FileContentProcessor
-    └── 快照 & 回滚                          (InputStream 流式内容处理)
-                                                    │
-                                              阿里云 OSS
+    │       Read / Write / Edit / ...       ├── AliyunOssStorage (实现)
+    ├── SkillTools (@McpTool)               └── LocalFileStorage (实现)
+    │       ListSkills / ReadSkill
+    └── 快照 & 回滚                     FileContentProcessor
+                                           (InputStream 流式内容处理)
+                                                  │
+                                            阿里云 OSS
+
+可选配套 / 类库：
+  spring-ai-skills   → XlsxTools（+ classpath skills/xlsx/SKILL.md）
+  mcp-tool-gateway   → Header 鉴权 + tools/list 过滤 + HTTP bypass tools/call
 ```
 
 ## 快速开始
@@ -54,7 +65,7 @@ spring-ai-harness-mcp-server
 
 - Java 17+
 - Maven 3.8+
-- 阿里云 OSS Bucket
+- 阿里云 OSS Bucket（MCP Server 模块需要）
 
 ### 配置
 
@@ -73,17 +84,63 @@ spring.ai.harness.mcp.server.observability.export-type=otlp
 ### 编译与运行
 
 ```bash
-# 编译后端
+# 编译后端模块
 ./mvnw compile -pl spring-ai-harness-mcp-server
+./mvnw compile -pl spring-ai-skills
+./mvnw compile -pl mcp-tool-gateway
 
 # 运行后端单元测试
 ./mvnw test -pl spring-ai-harness-mcp-server
+./mvnw test -pl spring-ai-skills
+./mvnw test -pl mcp-tool-gateway
 
 # 启动前端开发服务器
 cd spring-ai-harness-server-frontend
 npm install
 npm run dev
 ```
+
+## 使用 `spring-ai-skills`（XLSX）
+
+通过 BOM 引入依赖：
+
+```xml
+<dependency>
+  <groupId>io.github.spring-ai.harness</groupId>
+  <artifactId>spring-ai-skills</artifactId>
+</dependency>
+```
+
+注册工具，并可选加载内置技能提示词：
+
+```java
+StorageProvider storage = LocalFileStorage.builder()
+    .baseDir(Path.of("/path/to/workspace"))
+    .build();
+
+XlsxTools xlsxTools = XlsxTools.builder()
+    .storageProvider(storage)
+    .build();
+
+// 作为 Spring AI tools 挂到 ChatClient / ToolCallback 提供者
+// ToolCallbacks.from(xlsxTools)
+
+// 加载 classpath SKILL.md，供 SkillsTool / 系统提示注入
+List<SkillsTool.Skill> skills = SkillUtil.loadClassPath("classpath*:skills/**/SKILL.md");
+```
+
+### XLSX 工具一览
+
+| 工具 | 说明 |
+|------|------|
+| `readXlsxPreview` | Markdown 预览：工作表名、维度与前若干行 |
+| `readXlsxSheet` | 分页读取单元格值或原始公式 |
+| `createXlsx` | 根据 `SheetSpec` / `CellSpec` JSON 创建工作簿 |
+| `editXlsxCells` | 定点编辑单元格，不破坏未涉及内容 |
+| `evaluateXlsxFormulas` | 使用 POI 重算公式并汇总错误 |
+| `convertCsvToXlsx` | 以 SXSSF 流式将 CSV/TSV 转为 `.xlsx` |
+
+所有路径均相对于注入的 `StorageProvider` 根目录。
 
 ## MCP 工具参考
 

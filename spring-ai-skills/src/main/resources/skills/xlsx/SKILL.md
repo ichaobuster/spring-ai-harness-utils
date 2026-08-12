@@ -30,13 +30,16 @@ license: Proprietary. LICENSE.txt has complete terms
 
 After writing formulas to a workbook, cached values may not be populated until formulas are evaluated.
 
-Call `evaluateXlsxFormulas(filePath, writeBack=true)` to recalculate all formulas in place and check for formula errors (`#VALUE!`, `#DIV/0!`, `#REF!`, `#NAME?`, `#NULL!`, `#NUM!`, `#N/A`).
+Call `evaluateXlsxFormulas(filePath, writeBack=true)` to recalculate all formulas (updating cached values in place while keeping formula expressions) and check for formula errors (`#VALUE!`, `#DIV/0!`, `#REF!`, `#NAME?`, `#NULL!`, `#NUM!`, `#N/A`).
 
-**JSON Output Format:**
+**JSON Output Format (camelCase):**
 - `status`: `"success"` or `"errors_found"`
-- `total_formulas`: count of formula cells
-- `total_errors`: count of formula errors
-- `error_summary`: details per error type with cell locations
+- `totalFormulas`: count of formula cells
+- `totalErrors`: count of formula errors
+- `errorSummary`: details per error type with cell locations (`count`, `locations`, optional `locationsTruncated`)
+- `error`: present only when evaluation failed fatally (no `status` in that case)
+
+When `writeBack=true` (default), cached formula results are persisted **without replacing formulas** with literals. The workbook must still recalculate when inputs change.
 
 ## Choosing formulas that survive verification
 

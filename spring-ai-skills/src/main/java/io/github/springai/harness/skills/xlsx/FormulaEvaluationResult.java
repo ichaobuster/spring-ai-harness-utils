@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 公式重算与错误检测结果模型 (与 recalc.py JSON 输出格式保持一致)
+ * 公式重算与错误检测结果模型（JSON 字段使用 camelCase，与 SKILL.md / Jackson 默认序列化一致）
  *
  * @param status        执行状态 ("success" | "errors_found")
  * @param totalFormulas 公式总数

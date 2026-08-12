@@ -2,17 +2,19 @@
 
 > [!IMPORTANT]
 > **This project is under active development.** There are features still in progress, areas to polish, and libraries to supplement.
-> This document is a **Living Document** at the project root, consolidating the technical architecture and coding standards for both the backend (`mcp-server`) and frontend (`server-frontend`) modules.
+> This document is a **Living Document** at the project root, consolidating the technical architecture and coding standards across backend (`mcp-server`), frontend (`server-frontend`), gateway (`mcp-tool-gateway`), shared utils, and executable skills (`spring-ai-skills`) modules.
 > Sub-module `AGENTS.md` files are kept in sync. When modifying code or architecture, **all related AGENTS.md files (root and sub-modules) MUST be updated accordingly**.
 
 ---
 
 ## Root Architecture Overview
 
-The project consists of three core sub-modules:
+The project consists of the following core sub-modules:
 1. **`spring-ai-harness-mcp-server`**: A stateless server built on Spring Boot & Spring AI MCP, providing workspace-isolated secure path filtering, Snapshot creation & version rollback, streaming multimedia file processing, and pluggable OTel tracing.
 2. **`spring-ai-harness-server-frontend`**: A management Web console built with React 18 + Ant Design 5 + Vite, featuring a Windows Explorer-style file manager and an MCP Client debugger.
 3. **`mcp-tool-gateway`**: A stateless MCP gateway server built on Spring Boot that supports configurable header extraction, authentication validation, dynamic tool listing (filtered by headers), and transparent HTTP bypass tool invocation.
+4. **`spring-ai-skills`**: A library of executable agent skills exposed as Spring AI `@Tool` beans/classes (currently Apache POI-based XLSX tools), with bundled classpath `SKILL.md` prompts loadable via `SkillUtil`.
+5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, and context-compact advisors consumed by other modules.
 
 ### Unified Design Principles & Security Standards
 - **No hardcoded FQCNs in code**: Classes must be imported via explicit `import` statements. Using full `packageName.ClassName` paths in method signatures, type declarations, or `new` instantiations is strictly forbidden.
@@ -177,16 +179,60 @@ spring.ai.mcp.tool-gateway.forward-headers=Authorization,X-Tenant-Id
 
 ---
 
-## 4. Global Build & Test Commands
+
+## 4. Skills Module (spring-ai-skills)
+
+### 4.1 Purpose & Design
+- **Role**: Provide domain skills that agents can execute through Spring AI tool calling, independent of the MCP server process.
+- **Current skill**: `xlsx` — create/preview/edit Excel workbooks, evaluate formulas, and convert CSV/TSV to XLSX.
+- **I/O boundary**: All file reads/writes go through `StorageProvider` (typically `LocalFileStorage` or workspace-bound OSS storage). Tools must not open raw absolute filesystem paths themselves.
+- **Prompt packaging**: Each skill ships a classpath `SKILL.md` under `src/main/resources/skills/<name>/SKILL.md`. Agents discover it via `SkillUtil.loadClassPath("classpath*:skills/**/SKILL.md")` and/or workspace skill directories.
+
+### 4.2 Module Layout
+```
+spring-ai-skills/
+├── pom.xml
+└── src/
+    ├── main/
+    │   ├── java/io/github/springai/harness/skills/xlsx/
+    │   │   ├── XlsxTools.java                 # @Tool methods for spreadsheet ops
+    │   │   ├── CellSpec.java / CellStyleSpec.java / SheetSpec.java
+    │   │   └── FormulaEvaluationResult.java   # JSON result model for formula checks
+    │   └── resources/skills/xlsx/SKILL.md     # Agent-facing skill instructions
+    └── test/java/.../xlsx/XlsxToolsTest.java
+```
+
+### 4.3 XLSX Tool Contract
+| Tool | Responsibility | Limits / Notes |
+| :--- | :--- | :--- |
+| `readXlsxPreview` | Markdown preview of sheets + top rows | default 10 rows/sheet, hard cap 50 |
+| `readXlsxSheet` | Paginated cell/formula dump | 1-indexed rows; max 2000 rows per call |
+| `createXlsx` | Build workbook from `List<SheetSpec>` | uses SXSSF when estimated cells > 10000 |
+| `editXlsxCells` | Patch cells in an existing workbook | preserves untouched cells |
+| `evaluateXlsxFormulas` | POI formula evaluation + error summary | optional write-back of **cached results only** (formulas preserved) |
+| `convertCsvToXlsx` | CSV/TSV → XLSX | streaming SXSSF writer; 50MB input cap |
+
+### 4.4 Coding Standards Specific to Skills
+- Keep `@Tool` / `@ToolParam` descriptions in **English** and synchronized with `SKILL.md` (limits, output field names, supported formulas).
+- Prefer returning structured error strings/JSON for tool failures when practical; document any thrown validation exceptions.
+- Never hardcode FQCNs; import types explicitly (including POI XSSF types).
+- Unit tests must use temporary `LocalFileStorage` directories and must not touch real cloud storage.
+- New skills should follow the same package pattern: `skills/<name>` resources + `io.github.springai.harness.skills.<name>` tools + dedicated tests.
+
+---
+
+## 5. Global Build & Test Commands
 
 ### Build & Test Backend Modules
 ```bash
 # Compile backend modules
 ./mvnw compile -pl spring-ai-harness-mcp-server
+./mvnw compile -pl spring-ai-skills
 ./mvnw compile -pl mcp-tool-gateway
 
 # Run backend unit tests
 ./mvnw test -pl spring-ai-harness-mcp-server
+./mvnw test -pl spring-ai-skills
 ./mvnw test -pl mcp-tool-gateway
 ```
 
@@ -210,7 +256,7 @@ npm run build
 
 ---
 
-## 5. AI Assistant Development Guidelines & Quality Guardrails
+## 6. AI Assistant Development Guidelines & Quality Guardrails
 
 1. **Safety first (Surgical Edits)**: When modifying existing components or code logic, make minimal "surgical" changes. Preserve existing formatting and indentation. Never introduce file system paths that escape workspace isolation boundaries.
 2. **Test alongside development**: After adding any new method or logic fix, immediately run the full unit test suite (`./mvnw test`) to confirm no regression has occurred.

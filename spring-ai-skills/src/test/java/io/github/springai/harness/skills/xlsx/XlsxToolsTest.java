@@ -4,7 +4,14 @@ import io.github.springai.harness.storage.LocalFileStorage;
 import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.tool.SkillsTool;
 import io.github.springai.harness.util.SkillUtil;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,6 +139,16 @@ class XlsxToolsTest {
         assertThat(evalResult).contains("errors_found");
         assertThat(evalResult).contains("#DIV/0!");
         assertThat(evalResult).contains("totalFormulas");
+        assertThat(evalResult).doesNotContain("total_formulas");
+        assertThat(evalResult).contains("errorSummary");
+
+        // Formulas must remain formulas after writeBack=true (cached values only)
+        String formulaMode = xlsxTools.readXlsxSheet(targetFile, "Calc", 1, 10, true);
+        assertThat(formulaMode).contains("A3: =A1/A2");
+        assertThat(formulaMode).contains("B3: =SUM(B1:B2)");
+
+        String valueMode = xlsxTools.readXlsxSheet(targetFile, "Calc", 1, 10, false);
+        assertThat(valueMode).contains("B3: 20");
     }
 
     @Test
@@ -241,7 +258,7 @@ class XlsxToolsTest {
     }
 
     @Test
-    void testCreateXlsxStylesColorsHexAndRgb() {
+    void testCreateXlsxStylesColorsHexAndRgb() throws IOException {
         String file = "styles_test.xlsx";
         List<CellSpec> cells = List.of(
                 new CellSpec(null, "Skipped Cell", null, null, null), // null cellRef branch
@@ -259,6 +276,21 @@ class XlsxToolsTest {
         String preview = xlsxTools.readXlsxPreview(file, 10);
         assertThat(preview).contains("Sheet: Sheet1");
         assertThat(preview).contains("Text");
+
+        try (var is = storageProvider.readStream(file);
+             Workbook workbook = new XSSFWorkbook(is)) {
+            Sheet sheet = workbook.getSheet("Sheet1");
+            Cell cellA1 = sheet.getRow(0).getCell(0);
+            Font font = workbook.getFontAt(cellA1.getCellStyle().getFontIndex());
+            assertThat(font).isInstanceOf(XSSFFont.class);
+            XSSFColor color = ((XSSFFont) font).getXSSFColor();
+            assertThat(color).isNotNull();
+            byte[] rgb = color.getRGB();
+            assertThat(rgb).isNotNull();
+            assertThat(rgb[0] & 0xFF).isEqualTo(255);
+            assertThat(rgb[1] & 0xFF).isEqualTo(0);
+            assertThat(rgb[2] & 0xFF).isEqualTo(0);
+        }
     }
 
     @Test
