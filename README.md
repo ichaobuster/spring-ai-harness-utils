@@ -21,7 +21,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 - **🖼️ Multimedia Reading**: Images (PNG/JPG/JPEG) are auto-resized and returned as MCP `ImageContent` with Base64 encoding. PDFs support page-range extraction. Office documents (DOCX/XLSX/PPTX) are parsed to text.
 - **🔄 Streaming Processing**: All file content processing uses `InputStream`-based streaming via `FileContentProcessor` to prevent OOM errors with large files.
 - **🎯 Agent Skills**: Workspace-scoped `skills/` directory with `SKILL.md` discovery, exposed via both MCP Tools and `skill://` URI Resources. Classpath skills can also be loaded through `SkillUtil`.
-- **📊 Spreadsheet Skills (`spring-ai-skills`)**: Apache POI-based Spring AI `@Tool` implementations for creating, previewing, editing, formula-checking, and CSV-converting Excel workbooks through `StorageProvider`.
+- **📊 Document Skills (`spring-ai-skills`)**: Apache POI-based Spring AI `@Tool` implementations for XLSX (create/preview/edit/formulas/CSV) and DOCX (create/preview/replace/comments/accept revisions) through `StorageProvider`.
 - **🚪 MCP Tool Gateway**: Stateless gateway that authenticates requests, filters tool catalogs by headers, and transparently forwards tool calls to downstream HTTP APIs.
 - **📈 Pluggable Observability**: Optional OpenTelemetry tracing with zero-overhead decorator pattern — no runtime cost when disabled.
 - **🌐 Web Management Console**: React 18 + Ant Design 5 frontend with Windows Explorer-style file management, drag-and-drop, and an MCP Client JSON-RPC debugger.
@@ -33,7 +33,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 | `spring-ai-harness-mcp-server` | Core MCP Server with file tools, skills, snapshots, and streaming multimedia support |
 | `spring-ai-harness-server-frontend` | React-based web management console |
 | `spring-ai-harness-utils` | Storage providers, harness tools, skills helpers, and context-compact advisors |
-| `spring-ai-skills` | Executable agent skills implemented as Spring AI Tools (currently XLSX) |
+| `spring-ai-skills` | Executable agent skills implemented as Spring AI Tools (XLSX / DOCX) |
 | `mcp-tool-gateway` | Stateless MCP gateway with auth, permission filtering, and HTTP tool bypass |
 | `spring-ai-harness-utils-bom` | Bill of Materials for version management |
 
@@ -55,7 +55,7 @@ spring-ai-harness-mcp-server
                                              Alibaba Cloud OSS
 
 Optional sidecars / libraries:
-  spring-ai-skills   → XlsxTools (+ classpath skills/xlsx/SKILL.md)
+  spring-ai-skills   → XlsxTools / DocxTools (+ classpath skills/{xlsx,docx}/SKILL.md)
   mcp-tool-gateway   → header auth + tools/list filter + HTTP bypass tools/call
 ```
 
@@ -100,7 +100,7 @@ npm install
 npm run dev
 ```
 
-## Using `spring-ai-skills` (XLSX)
+## Using `spring-ai-skills` (XLSX / DOCX)
 
 Add the dependency (preferably via the BOM):
 
@@ -118,13 +118,22 @@ StorageProvider storage = LocalFileStorage.builder()
     .baseDir(Path.of("/path/to/workspace"))
     .build();
 
-XlsxTools xlsxTools = XlsxTools.builder()
-    .storageProvider(storage)
+XlsxTools xlsxTools = new XlsxTools(); // local filesystem paths
+
+OssLocalFileTools bridge = OssLocalFileTools.builder()
+    .ossClient(ossClient)
+    .bucketName("your-bucket")
+    .prefix("mcp/workspaces/sys-agent-user/") // optional
+    .downloadPath(Path.of("/tmp"))            // optional
     .build();
+// bridge.downloadOssFileToLocal("reports/a.xlsx") -> /tmp/{uuid}/a.xlsx
 
 // Expose as Spring AI tools on your ChatClient / ToolCallback provider
 // ToolCallbacks.from(xlsxTools)
 
+DocxTools docxTools = new DocxTools();
+// ToolCallbacks.from(docxTools)
+// Local filesystem paths; use OssLocalFileTools for remote files
 // Load classpath SKILL.md for SkillsTool / system prompt injection
 List<SkillsTool.Skill> skills = SkillUtil.loadClassPath("classpath*:skills/**/SKILL.md");
 ```
@@ -140,7 +149,19 @@ List<SkillsTool.Skill> skills = SkillUtil.loadClassPath("classpath*:skills/**/SK
 | `evaluateXlsxFormulas` | Recalculate formulas with POI and report error groups |
 | `convertCsvToXlsx` | Stream CSV/TSV into `.xlsx` via SXSSF |
 
-All paths are relative to the injected `StorageProvider` root.
+### DOCX tool surface
+
+| Tool | Description |
+|------|-------------|
+| `readDocxPreview` | Markdown overview of paragraphs/tables and first body blocks |
+| `readDocxContent` | Paginated body dump (paragraphs + markdown tables) |
+| `createDocx` | Create a `.docx` from ordered block specs (paragraph/table/pageBreak) |
+| `replaceDocxText` | Find/replace plain text in body and tables |
+| `mergeDocxRuns` | Merge adjacent identically formatted runs |
+| `addDocxComment` | Add a comment, optionally anchored to text |
+| `acceptDocxTrackedChanges` | Accept insertions and drop deletions |
+
+XLSX/DOCX tool paths are local filesystem paths (absolute or relative). Use `OssLocalFileTools` when files live in remote storage.
 
 ## MCP Tools Reference
 

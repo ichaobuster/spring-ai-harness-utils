@@ -21,7 +21,7 @@
 - **🖼️ 多媒体读取**：图片（PNG/JPG/JPEG）自动按比例缩放后以 MCP `ImageContent` Base64 格式返回；PDF 支持页码范围提取；Office 文档（DOCX/XLSX/PPTX）解析为纯文本。
 - **🔄 流式处理**：所有文件内容处理均通过 `FileContentProcessor` 以 `InputStream` 流式传输方式执行，有效防止处理大文件时的内存溢出（OOM）风险。
 - **🎯 Agent 技能系统**：支持工作区级 `skills/` 目录的 `SKILL.md` 自动发现，同时通过 MCP Tools 和 `skill://` URI Resources 双协议暴露；也可通过 `SkillUtil` 加载 classpath 技能。
-- **📊 电子表格技能（`spring-ai-skills`）**：基于 Apache POI 的 Spring AI `@Tool` 实现，支持通过 `StorageProvider` 创建、预览、编辑、公式检查与 CSV 转 Excel。
+- **📊 文档技能（`spring-ai-skills`）**：基于 Apache POI 的 Spring AI `@Tool` 实现，支持通过 `StorageProvider` 处理 XLSX（创建/预览/编辑/公式/CSV）与 DOCX（创建/预览/替换/批注/接受修订）。
 - **🚪 MCP Tool Gateway**：无状态网关，支持鉴权、基于 Header 的工具目录过滤，以及将 tool call 透明转发到下游 HTTP API。
 - **📈 可插拔可观测性**：可选的 OpenTelemetry 链路追踪，采用零运行开销的装饰器模式 —— 关闭时无任何性能损耗。
 - **🌐 Web 管理控制台**：基于 React 18 + Ant Design 5 构建，提供 Windows 资源管理器风格的文件管理、拖拽操作及 MCP Client JSON-RPC 调试器。
@@ -33,7 +33,7 @@
 | `spring-ai-harness-mcp-server` | 核心 MCP Server，包含文件工具、技能系统、快照回滚及流式多媒体支持 |
 | `spring-ai-harness-server-frontend` | 基于 React 的 Web 管理控制台 |
 | `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助与上下文压缩 Advisor |
-| `spring-ai-skills` | 以 Spring AI Tools 形式实现的可执行 Agent Skills（当前为 XLSX） |
+| `spring-ai-skills` | 以 Spring AI Tools 形式实现的可执行 Agent Skills（XLSX / DOCX） |
 | `mcp-tool-gateway` | 无状态 MCP 网关：鉴权、权限过滤、HTTP Bypass 调用 |
 | `spring-ai-harness-utils-bom` | BOM（Bill of Materials）版本统一管理 |
 
@@ -55,7 +55,7 @@ spring-ai-harness-mcp-server
                                             阿里云 OSS
 
 可选配套 / 类库：
-  spring-ai-skills   → XlsxTools（+ classpath skills/xlsx/SKILL.md）
+  spring-ai-skills   → XlsxTools / DocxTools（+ classpath skills/{xlsx,docx}/SKILL.md）
   mcp-tool-gateway   → Header 鉴权 + tools/list 过滤 + HTTP bypass tools/call
 ```
 
@@ -100,7 +100,7 @@ npm install
 npm run dev
 ```
 
-## 使用 `spring-ai-skills`（XLSX）
+## 使用 `spring-ai-skills`（XLSX / DOCX）
 
 通过 BOM 引入依赖：
 
@@ -118,13 +118,25 @@ StorageProvider storage = LocalFileStorage.builder()
     .baseDir(Path.of("/path/to/workspace"))
     .build();
 
-XlsxTools xlsxTools = XlsxTools.builder()
-    .storageProvider(storage)
+XlsxTools xlsxTools = new XlsxTools(); // local filesystem paths
+
+OssLocalFileTools bridge = OssLocalFileTools.builder()
+    .ossClient(ossClient)
+    .bucketName("your-bucket")
+    .prefix("mcp/workspaces/sys-agent-user/") // optional
+    .downloadPath(Path.of("/tmp"))            // optional
     .build();
+// bridge.downloadOssFileToLocal("reports/a.xlsx") -> /tmp/{uuid}/a.xlsx
 
 // 作为 Spring AI tools 挂到 ChatClient / ToolCallback 提供者
 // ToolCallbacks.from(xlsxTools)
 
+DocxTools docxTools = new DocxTools();
+// ToolCallbacks.from(docxTools)
+// Local filesystem paths; use OssLocalFileTools for remote files
+DocxTools docxTools = new DocxTools();
+// ToolCallbacks.from(docxTools)
+// Local filesystem paths; use OssLocalFileTools for remote files
 // 加载 classpath SKILL.md，供 SkillsTool / 系统提示注入
 List<SkillsTool.Skill> skills = SkillUtil.loadClassPath("classpath*:skills/**/SKILL.md");
 ```
@@ -140,7 +152,19 @@ List<SkillsTool.Skill> skills = SkillUtil.loadClassPath("classpath*:skills/**/SK
 | `evaluateXlsxFormulas` | 使用 POI 重算公式并汇总错误 |
 | `convertCsvToXlsx` | 以 SXSSF 流式将 CSV/TSV 转为 `.xlsx` |
 
-所有路径均相对于注入的 `StorageProvider` 根目录。
+### DOCX 工具面
+
+| 工具 | 说明 |
+|------|------|
+| `readDocxPreview` | Markdown 概览：段落/表格数量与前若干正文块 |
+| `readDocxContent` | 分页读取正文（段落 + Markdown 表格） |
+| `createDocx` | 按块规范创建 `.docx`（paragraph/table/pageBreak） |
+| `replaceDocxText` | 正文与表格内查找替换 |
+| `mergeDocxRuns` | 合并相邻同格式 run，便于查找 |
+| `addDocxComment` | 添加批注（可选锚点文本） |
+| `acceptDocxTrackedChanges` | 接受插入修订并删除删除修订 |
+
+XLSX/DOCX 工具路径为本地文件系统路径（绝对或相对）。远端存储文件请先通过 `OssLocalFileTools` 落盘。
 
 ## MCP 工具参考
 

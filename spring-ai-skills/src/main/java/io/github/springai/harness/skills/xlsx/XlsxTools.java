@@ -1,12 +1,9 @@
 package io.github.springai.harness.skills.xlsx;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
-import io.github.springai.harness.storage.LocalFileStorage;
-import io.github.springai.harness.storage.StorageProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -35,13 +32,14 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,7 +47,8 @@ import java.util.Map;
 
 /**
  * Spring AI Tools providing Excel (XLSX/XLSM/CSV) creation, editing, preview, formula evaluation, and format conversion capabilities.
- * All file operations read and write through {@link StorageProvider}.
+ * All file operations use the local filesystem ({@link Path}/{@link Files}).
+ * For OSS files, materialize them first via {@code OssLocalFileTools#downloadOssFileToLocal}.
  * Designed with OOM prevention and pure Java Apache POI.
  *
  * @author ichaobuster
@@ -68,37 +67,14 @@ public class XlsxTools {
             "#VALUE!", "#DIV/0!", "#REF!", "#NAME?", "#NULL!", "#NUM!", "#N/A"
     );
 
-    private final StorageProvider storageProvider;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public XlsxTools(StorageProvider storageProvider) {
-        this.storageProvider = storageProvider != null ? storageProvider : new LocalFileStorage(Paths.get("."));
-    }
-
     public XlsxTools() {
-        this(new LocalFileStorage(Paths.get(".")));
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private StorageProvider storageProvider;
-
-        public Builder storageProvider(StorageProvider storageProvider) {
-            this.storageProvider = storageProvider;
-            return this;
-        }
-
-        public XlsxTools build() {
-            return new XlsxTools(this.storageProvider);
-        }
     }
 
     @Tool(name = "readXlsxPreview", description = "Generate a quick markdown preview of an Excel spreadsheet (.xlsx, .xlsm), showing sheet names, dimensions, and top rows of data.")
     public String readXlsxPreview(
-            @ToolParam(description = "Path to the Excel file relative to storage") String filePath,
+            @ToolParam(description = "Local filesystem path to the Excel file (absolute or relative)") String filePath,
             @ToolParam(description = "Maximum rows per sheet to preview (default 10, max 50)", required = false) Integer maxRowsPerSheet) {
         validateFileExistsAndSize(filePath);
         int maxRows = Math.min(maxRowsPerSheet != null && maxRowsPerSheet > 0 ? maxRowsPerSheet : MAX_PREVIEW_ROWS_DEFAULT, MAX_PREVIEW_ROWS_CAP);
@@ -106,7 +82,7 @@ public class XlsxTools {
         StringBuilder sb = new StringBuilder();
         sb.append("# Excel Preview: ").append(filePath).append("\n\n");
 
-        try (InputStream is = storageProvider.readStream(filePath);
+        try (InputStream is = Files.newInputStream(resolveLocalPath(filePath));
              Workbook workbook = WorkbookFactory.create(is)) {
             int numberOfSheets = workbook.getNumberOfSheets();
             sb.append("Total Sheets: ").append(numberOfSheets).append("\n\n");
@@ -175,7 +151,7 @@ public class XlsxTools {
 
     @Tool(name = "readXlsxSheet", description = "Read cell values or formulas from a specific sheet in an Excel file with pagination.")
     public String readXlsxSheet(
-            @ToolParam(description = "Path to the Excel file relative to storage") String filePath,
+            @ToolParam(description = "Local filesystem path to the Excel file (absolute or relative)") String filePath,
             @ToolParam(description = "Sheet name to read") String sheetName,
             @ToolParam(description = "Start row (1-indexed, default 1)", required = false) Integer startRow,
             @ToolParam(description = "End row (1-indexed, default 100, max range 2000)", required = false) Integer endRow,
@@ -189,7 +165,7 @@ public class XlsxTools {
 
         boolean formulasMode = Boolean.TRUE.equals(showFormulas);
 
-        try (InputStream is = storageProvider.readStream(filePath);
+        try (InputStream is = Files.newInputStream(resolveLocalPath(filePath));
              Workbook workbook = WorkbookFactory.create(is)) {
             Sheet sheet = workbook.getSheet(sheetName);
             if (sheet == null) {
@@ -234,7 +210,7 @@ public class XlsxTools {
 
     @Tool(name = "createXlsx", description = "Create a new Excel file (.xlsx) with custom sheets, values, formulas, comments, and cell styles.")
     public String createXlsx(
-            @ToolParam(description = "Target path relative to storage to save the new .xlsx file") String filePath,
+            @ToolParam(description = "Local filesystem path to save the new .xlsx file (absolute or relative)") String filePath,
             @ToolParam(description = "List of SheetSpec objects specifying sheets, cells, formulas, and formatting") List<SheetSpec> sheets) {
         try {
             if (sheets == null || sheets.isEmpty()) {
@@ -307,7 +283,7 @@ public class XlsxTools {
                 }
             }
 
-            saveWorkbookToStorage(filePath, workbook);
+            saveWorkbookToFile(filePath, workbook);
 
             if (workbook instanceof SXSSFWorkbook sxssf) {
                 sxssf.dispose();
@@ -324,7 +300,7 @@ public class XlsxTools {
 
     @Tool(name = "editXlsxCells", description = "Edit existing cell values, formulas, or formatting in an Excel file without destroying untouched cells.")
     public String editXlsxCells(
-            @ToolParam(description = "Path to existing .xlsx file relative to storage") String filePath,
+            @ToolParam(description = "Local filesystem path to an existing .xlsx file (absolute or relative)") String filePath,
             @ToolParam(description = "List of SheetSpec objects specifying cell edits for each sheet") List<SheetSpec> sheets) {
         validateFileExistsAndSize(filePath);
 
@@ -333,7 +309,7 @@ public class XlsxTools {
                 return "Error: sheets parameter cannot be empty.";
             }
 
-            try (InputStream is = storageProvider.readStream(filePath);
+            try (InputStream is = Files.newInputStream(resolveLocalPath(filePath));
                  Workbook workbook = new XSSFWorkbook(is)) {
 
                 Map<String, CellStyle> styleCache = new HashMap<>();
@@ -380,7 +356,7 @@ public class XlsxTools {
                     }
                 }
 
-                saveWorkbookToStorage(filePath, workbook);
+                saveWorkbookToFile(filePath, workbook);
             }
 
             return "Successfully edited XLSX file: " + filePath;
@@ -393,12 +369,12 @@ public class XlsxTools {
 
     @Tool(name = "evaluateXlsxFormulas", description = "Recalculate all formulas in an Excel workbook using POI FormulaEvaluator, update cached results without replacing formulas, and detect formula errors.")
     public String evaluateXlsxFormulas(
-            @ToolParam(description = "Path to .xlsx file relative to storage") String filePath,
+            @ToolParam(description = "Local filesystem path to the .xlsx file (absolute or relative)") String filePath,
             @ToolParam(description = "Whether to save the workbook with updated cached formula results back to storage while keeping formulas intact (default true)", required = false) Boolean writeBack) {
         validateFileExistsAndSize(filePath);
         boolean saveInPlace = writeBack == null || Boolean.TRUE.equals(writeBack);
 
-        try (InputStream is = storageProvider.readStream(filePath);
+        try (InputStream is = Files.newInputStream(resolveLocalPath(filePath));
              Workbook workbook = new XSSFWorkbook(is)) {
 
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
@@ -450,7 +426,7 @@ public class XlsxTools {
             }
 
             if (saveInPlace) {
-                saveWorkbookToStorage(filePath, workbook);
+                saveWorkbookToFile(filePath, workbook);
             }
 
             Map<String, FormulaEvaluationResult.ErrorGroup> summary = new HashMap<>();
@@ -479,8 +455,8 @@ public class XlsxTools {
 
     @Tool(name = "convertCsvToXlsx", description = "Convert a CSV or TSV file to Excel format (.xlsx) using streaming SXSSF write for OOM safety.")
     public String convertCsvToXlsx(
-            @ToolParam(description = "Path to the input CSV/TSV file relative to storage") String csvFilePath,
-            @ToolParam(description = "Path relative to storage to save the output .xlsx file") String xlsxFilePath,
+            @ToolParam(description = "Local filesystem path to the input CSV/TSV file (absolute or relative)") String csvFilePath,
+            @ToolParam(description = "Local filesystem path to save the output .xlsx file (absolute or relative)") String xlsxFilePath,
             @ToolParam(description = "Field delimiter character (e.g. ',' or '\\t')", required = false) String delimiter,
             @ToolParam(description = "Sheet name for the converted output", required = false) String sheetName) {
         validateFileExistsAndSize(csvFilePath);
@@ -488,7 +464,7 @@ public class XlsxTools {
         char sep = sepStr.equals("\\t") || sepStr.equals("\t") ? '\t' : sepStr.charAt(0);
         String sName = sheetName != null && !sheetName.isBlank() ? sheetName : "Data";
 
-        try (InputStream is = storageProvider.readStream(csvFilePath);
+        try (InputStream is = Files.newInputStream(resolveLocalPath(csvFilePath));
              CSVReader csvReader = new CSVReaderBuilder(new InputStreamReader(is, StandardCharsets.UTF_8))
                      .withCSVParser(new CSVParserBuilder().withSeparator(sep).build())
                      .build();
@@ -507,7 +483,7 @@ public class XlsxTools {
                 }
             }
 
-            saveWorkbookToStorage(xlsxFilePath, workbook);
+            saveWorkbookToFile(xlsxFilePath, workbook);
             workbook.dispose();
 
             return "Successfully converted CSV to XLSX: " + xlsxFilePath + " (" + rowIndex + " rows)";
@@ -520,26 +496,37 @@ public class XlsxTools {
 
     // Helper methods
 
-    private void validateFileExistsAndSize(String filePath) {
-        if (!storageProvider.exists(filePath)) {
-            throw new IllegalArgumentException("File does not exist in storage: " + filePath);
+    private Path resolveLocalPath(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath must not be blank");
         }
+        return Path.of(filePath).toAbsolutePath().normalize();
+    }
+
+    private void validateFileExistsAndSize(String filePath) {
+        Path path = resolveLocalPath(filePath);
+        if (!Files.isRegularFile(path)) {
+            throw new IllegalArgumentException("File does not exist on local filesystem: " + path);
+        }
+        final long size;
         try {
-            StorageProvider.Info info = storageProvider.getInfo(filePath);
-            if (info.size() > MAX_FILE_SIZE_BYTES) {
-                throw new IllegalArgumentException("File size exceeds 50MB safety limit: " + filePath);
-            }
+            size = Files.size(path);
         } catch (IOException e) {
-            log.warn("Could not retrieve file info for {}: {}", filePath, e.getMessage());
+            throw new IllegalArgumentException("Could not determine file size for: " + path, e);
+        }
+        if (size > MAX_FILE_SIZE_BYTES) {
+            throw new IllegalArgumentException("File size exceeds 50MB safety limit: " + path);
         }
     }
 
-    private void saveWorkbookToStorage(String filePath, Workbook workbook) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        workbook.write(bos);
-        byte[] bytes = bos.toByteArray();
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes)) {
-            storageProvider.writeFile(filePath, bis, bytes.length);
+    private void saveWorkbookToFile(String filePath, Workbook workbook) throws IOException {
+        Path path = resolveLocalPath(filePath);
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        try (OutputStream os = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            workbook.write(os);
         }
     }
 

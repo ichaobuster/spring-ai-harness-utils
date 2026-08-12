@@ -13,7 +13,7 @@ The project consists of the following core sub-modules:
 1. **`spring-ai-harness-mcp-server`**: A stateless server built on Spring Boot & Spring AI MCP, providing workspace-isolated secure path filtering, Snapshot creation & version rollback, streaming multimedia file processing, and pluggable OTel tracing.
 2. **`spring-ai-harness-server-frontend`**: A management Web console built with React 18 + Ant Design 5 + Vite, featuring a Windows Explorer-style file manager and an MCP Client debugger.
 3. **`mcp-tool-gateway`**: A stateless MCP gateway server built on Spring Boot that supports configurable header extraction, authentication validation, dynamic tool listing (filtered by headers), and transparent HTTP bypass tool invocation.
-4. **`spring-ai-skills`**: A library of executable agent skills exposed as Spring AI `@Tool` beans/classes (currently Apache POI-based XLSX tools), with bundled classpath `SKILL.md` prompts loadable via `SkillUtil`.
+4. **`spring-ai-skills`**: A library of executable agent skills exposed as Spring AI `@Tool` beans/classes (Apache POI-based XLSX and DOCX tools), with bundled classpath `SKILL.md` prompts loadable via `SkillUtil`.
 5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, and context-compact advisors consumed by other modules.
 
 ### Unified Design Principles & Security Standards
@@ -184,8 +184,10 @@ spring.ai.mcp.tool-gateway.forward-headers=Authorization,X-Tenant-Id
 
 ### 4.1 Purpose & Design
 - **Role**: Provide domain skills that agents can execute through Spring AI tool calling, independent of the MCP server process.
-- **Current skill**: `xlsx` — create/preview/edit Excel workbooks, evaluate formulas, and convert CSV/TSV to XLSX.
-- **I/O boundary**: All file reads/writes go through `StorageProvider` (typically `LocalFileStorage` or workspace-bound OSS storage). Tools must not open raw absolute filesystem paths themselves.
+- **Current skills**:
+  - `xlsx` — create/preview/edit Excel workbooks, evaluate formulas, and convert CSV/TSV to XLSX.
+  - `docx` — create/preview/edit Word documents, merge runs, comments, and accept tracked changes (Apache POI).
+- **I/O boundary**: Domain tools such as `XlsxTools` operate on **local filesystem paths**. Remote OSS files are materialised via `OssLocalFileTools` (`downloadOssFileToLocal` / `uploadLocalFileToOss`) which talks to the Aliyun OSS SDK directly (`OSS`, `bucketName`, optional `prefix`, `downloadPath` default `/tmp`).
 - **Prompt packaging**: Each skill ships a classpath `SKILL.md` under `src/main/resources/skills/<name>/SKILL.md`. Agents discover it via `SkillUtil.loadClassPath("classpath*:skills/**/SKILL.md")` and/or workspace skill directories.
 
 ### 4.2 Module Layout
@@ -194,23 +196,48 @@ spring-ai-skills/
 ├── pom.xml
 └── src/
     ├── main/
-    │   ├── java/io/github/springai/harness/skills/xlsx/
-    │   │   ├── XlsxTools.java                 # @Tool methods for spreadsheet ops
-    │   │   ├── CellSpec.java / CellStyleSpec.java / SheetSpec.java
-    │   │   └── FormulaEvaluationResult.java   # JSON result model for formula checks
-    │   └── resources/skills/xlsx/SKILL.md     # Agent-facing skill instructions
-    └── test/java/.../xlsx/XlsxToolsTest.java
+    │   ├── java/io/github/springai/harness/skills/
+    │   │   ├── storage/
+    │   │   │   └── OssLocalFileTools.java     # Aliyun OSS SDK ↔ local downloadPath bridge tools
+    │   │   ├── xlsx/
+    │   │   │   ├── XlsxTools.java                 # @Tool methods for spreadsheet ops (local FS)
+    │   │   │   ├── CellSpec.java / CellStyleSpec.java / SheetSpec.java
+    │   │   │   └── FormulaEvaluationResult.java   # JSON result model for formula checks
+    │   │   └── docx/
+    │   │       ├── DocxTools.java                 # @Tool methods for Word ops
+    │   │       └── Docx*Spec.java                 # Block/paragraph/run/table/page specs
+    │   └── resources/skills/
+    │       ├── xlsx/SKILL.md
+    │       └── docx/SKILL.md
+    └── test/java/.../xlsx|docx/*ToolsTest.java
 ```
 
 ### 4.3 XLSX Tool Contract
 | Tool | Responsibility | Limits / Notes |
 | :--- | :--- | :--- |
-| `readXlsxPreview` | Markdown preview of sheets + top rows | default 10 rows/sheet, hard cap 50 |
+| `readXlsxPreview` | Markdown preview of sheets + top rows | **local FS path**; default 10 rows/sheet, hard cap 50 |
 | `readXlsxSheet` | Paginated cell/formula dump | 1-indexed rows; max 2000 rows per call |
 | `createXlsx` | Build workbook from `List<SheetSpec>` | uses SXSSF when estimated cells > 10000 |
 | `editXlsxCells` | Patch cells in an existing workbook | preserves untouched cells |
 | `evaluateXlsxFormulas` | POI formula evaluation + error summary | optional write-back of **cached results only** (formulas preserved) |
 | `convertCsvToXlsx` | CSV/TSV → XLSX | streaming SXSSF writer; 50MB input cap |
+
+### 4.3.0 OSS ↔ Local Bridge (`OssLocalFileTools`)
+| Tool | Responsibility | Limits / Notes |
+| :--- | :--- | :--- |
+| `downloadOssFileToLocal` | Download OSS object `prefix+path` into `{downloadPath}/{uuid}/{fileName}` | constructor/builder: `OSS`, `bucketName`, optional `prefix`, `downloadPath` (default `/tmp`); rejects absolute/`..` paths; 50MB cap |
+| `uploadLocalFileToOss` | Upload local file to OSS `prefix+path` | 50MB cap; overwrites destination object |
+
+### 4.3.1 DOCX Tool Contract
+| Tool | Responsibility | Limits / Notes |
+| :--- | :--- | :--- |
+| `readDocxPreview` | Markdown overview + first body blocks | default 20 blocks, hard cap 100 |
+| `readDocxContent` | Paginated body dump (paragraphs/tables) | 1-indexed start; max 500 blocks/call |
+| `createDocx` | Build `.docx` from `List<DocxBlockSpec>` | optional A4 page setup; tables use DXA widths |
+| `replaceDocxText` | Find/replace in body + table cells | local FS paths; prefer `mergeDocxRuns` first when text is split |
+| `mergeDocxRuns` | Coalesce adjacent same-format runs | optional `outputPath`; 50MB cap |
+| `addDocxComment` | Add comment (optional `anchorText`) | POI high-level; extended comment parts not guaranteed |
+| `acceptDocxTrackedChanges` | Accept `w:ins` / drop `w:del` | pure Java CT-level; optional `outputPath` |
 
 ### 4.4 Coding Standards Specific to Skills
 - Keep `@Tool` / `@ToolParam` descriptions in **English** and synchronized with `SKILL.md` (limits, output field names, supported formulas).

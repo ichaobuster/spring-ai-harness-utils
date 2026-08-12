@@ -1,14 +1,9 @@
 package io.github.springai.harness.skills.xlsx;
 
-import io.github.springai.harness.storage.LocalFileStorage;
-import io.github.springai.harness.storage.StorageProvider;
 import io.github.springai.harness.tool.SkillsTool;
 import io.github.springai.harness.util.SkillUtil;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Font;
-import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
@@ -18,39 +13,33 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class XlsxToolsTest {
 
     private XlsxTools xlsxTools;
-    private StorageProvider storageProvider;
+    private Path tempDir;
 
     @BeforeEach
     void setUp(@TempDir Path tempDir) {
-        storageProvider = LocalFileStorage.builder()
-                .baseDir(tempDir)
-                .build();
-        xlsxTools = XlsxTools.builder()
-                .storageProvider(storageProvider)
-                .build();
+        this.tempDir = tempDir;
+        xlsxTools = new XlsxTools();
+    }
+
+    private String path(String name) {
+        return tempDir.resolve(name).toAbsolutePath().toString();
     }
 
     @Test
     void testCreateXlsxAndReadPreview() {
-        String targetFile = "test_create.xlsx";
+        String targetFile = path("test_create.xlsx");
 
         List<CellSpec> cells = List.of(
                 new CellSpec("A1", "Item", null, new CellStyleSpec("Arial", (short) 12, true, false, "0,0,255", null, null, "CENTER", null), "Header cell"),
@@ -69,7 +58,7 @@ class XlsxToolsTest {
 
         String createResult = xlsxTools.createXlsx(targetFile, sheets);
         assertThat(createResult).contains("Successfully created XLSX file");
-        assertThat(storageProvider.exists(targetFile)).isTrue();
+        assertThat(Files.exists(Path.of(targetFile))).isTrue();
 
         // Test Preview
         String preview = xlsxTools.readXlsxPreview(targetFile, 10);
@@ -80,7 +69,7 @@ class XlsxToolsTest {
 
     @Test
     void testReadXlsxSheet() {
-        String targetFile = "test_read.xlsx";
+        String targetFile = path("test_read.xlsx");
         List<SheetSpec> sheets = List.of(
                 new SheetSpec("Data", List.of(
                         new CellSpec("A1", "X", null, null, null),
@@ -100,7 +89,7 @@ class XlsxToolsTest {
 
     @Test
     void testEditXlsxCells() {
-        String targetFile = "test_edit.xlsx";
+        String targetFile = path("test_edit.xlsx");
         List<SheetSpec> initialSheets = List.of(
                 new SheetSpec("Sheet1", List.of(new CellSpec("A1", "Old Value", null, null, null)), null, null, null)
         );
@@ -122,7 +111,7 @@ class XlsxToolsTest {
 
     @Test
     void testEvaluateXlsxFormulas() {
-        String targetFile = "test_eval.xlsx";
+        String targetFile = path("test_eval.xlsx");
         List<SheetSpec> sheets = List.of(
                 new SheetSpec("Calc", List.of(
                         new CellSpec("A1", 10, null, null, null),
@@ -153,13 +142,13 @@ class XlsxToolsTest {
 
     @Test
     void testConvertCsvToXlsx() throws IOException {
-        String csvFile = "input.csv";
-        storageProvider.writeString(csvFile, "Name,Age,Score\nAlice,30,95.5\nBob,25,88.0\n");
+        String csvFile = path("input.csv");
+        Files.writeString(Path.of(csvFile), "Name,Age,Score\nAlice,30,95.5\nBob,25,88.0\n");
 
-        String xlsxFile = "output.xlsx";
+        String xlsxFile = path("output.xlsx");
         String result = xlsxTools.convertCsvToXlsx(csvFile, xlsxFile, ",", "Scores");
         assertThat(result).contains("Successfully converted CSV to XLSX");
-        assertThat(storageProvider.exists(xlsxFile)).isTrue();
+        assertThat(Files.exists(Path.of(xlsxFile))).isTrue();
 
         String preview = xlsxTools.readXlsxPreview(xlsxFile, 10);
         assertThat(preview).contains("Scores");
@@ -190,7 +179,7 @@ class XlsxToolsTest {
 
     @Test
     void testEditXlsxCellsEmptyAndNullSheets() {
-        String file = "exist_edit.xlsx";
+        String file = path("exist_edit.xlsx");
         xlsxTools.createXlsx(file, List.of(new SheetSpec("Sheet1", List.of(), null, null, null)));
         assertThat(xlsxTools.editXlsxCells(file, null)).contains("Error: sheets parameter cannot be empty.");
         assertThat(xlsxTools.editXlsxCells(file, List.of())).contains("Error: sheets parameter cannot be empty.");
@@ -198,23 +187,26 @@ class XlsxToolsTest {
 
     @Test
     void testValidationFileNotExistsAndTooLarge() throws IOException {
-        assertThatThrownBy(() -> xlsxTools.readXlsxPreview("non_existent.xlsx", 10))
+        assertThatThrownBy(() -> xlsxTools.readXlsxPreview(path("non_existent.xlsx"), 10))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("File does not exist in storage");
+                .hasMessageContaining("File does not exist on local filesystem");
 
-        StorageProvider mockProvider = mock(StorageProvider.class);
-        when(mockProvider.exists("huge.xlsx")).thenReturn(true);
-        when(mockProvider.getInfo("huge.xlsx")).thenReturn(new StorageProvider.Info("huge.xlsx", true, false, 60 * 1024 * 1024L, System.currentTimeMillis()));
-
-        XlsxTools toolsWithMock = XlsxTools.builder().storageProvider(mockProvider).build();
-        assertThatThrownBy(() -> toolsWithMock.readXlsxPreview("huge.xlsx", 10))
+        Path huge = tempDir.resolve("huge.xlsx");
+        // Create a sparse-like large file efficiently is OS-dependent; write slightly over limit via mock-size alternative:
+        // Use a real file and temporarily lower is not available — write 0-byte then use Files with a custom path check.
+        // Write a file larger than 50MB would be heavy; instead create empty file and verify size check with a dedicated tiny helper file
+        // by writing 51MB would be slow. Create file with RandomAccessFile setLength.
+        try (var raf = new java.io.RandomAccessFile(huge.toFile(), "rw")) {
+            raf.setLength(51L * 1024 * 1024);
+        }
+        assertThatThrownBy(() -> xlsxTools.readXlsxPreview(huge.toAbsolutePath().toString(), 10))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("File size exceeds 50MB safety limit");
     }
 
     @Test
     void testPreviewEmptySheetAndRowHiding() {
-        String file = "preview_test.xlsx";
+        String file = path("preview_test.xlsx");
         // Create empty sheet and a sheet with 15 rows
         List<CellSpec> cells = List.of(
                 new CellSpec("A1", "Row 1", null, null, null),
@@ -238,7 +230,7 @@ class XlsxToolsTest {
 
     @Test
     void testReadXlsxSheetPaginationAndMissingSheet() {
-        String file = "read_sheet_test.xlsx";
+        String file = path("read_sheet_test.xlsx");
         List<SheetSpec> sheets = List.of(
                 new SheetSpec("SheetA", List.of(
                         new CellSpec("A1", true, null, null, null),
@@ -259,7 +251,7 @@ class XlsxToolsTest {
 
     @Test
     void testCreateXlsxStylesColorsHexAndRgb() throws IOException {
-        String file = "styles_test.xlsx";
+        String file = path("styles_test.xlsx");
         List<CellSpec> cells = List.of(
                 new CellSpec(null, "Skipped Cell", null, null, null), // null cellRef branch
                 new CellSpec("A1", "Text", null, new CellStyleSpec("Courier New", (short) 14, true, true, "#FF0000", "#FFFF00", "$#,##0", "RIGHT", "TOP"), "Comment 1"),
@@ -277,7 +269,7 @@ class XlsxToolsTest {
         assertThat(preview).contains("Sheet: Sheet1");
         assertThat(preview).contains("Text");
 
-        try (var is = storageProvider.readStream(file);
+        try (var is = Files.newInputStream(Path.of(file));
              Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheet("Sheet1");
             Cell cellA1 = sheet.getRow(0).getCell(0);
@@ -295,7 +287,7 @@ class XlsxToolsTest {
 
     @Test
     void testEditXlsxCellsDefaultSheetAndNullSheetName() {
-        String file = "edit_default.xlsx";
+        String file = path("edit_default.xlsx");
         List<SheetSpec> initial = List.of(
                 new SheetSpec("Sheet1", List.of(new CellSpec("A1", "Init", null, null, null)), null, null, null)
         );
@@ -321,7 +313,7 @@ class XlsxToolsTest {
 
     @Test
     void testEvaluateXlsxFormulasNoWriteBackAndVariousErrors() {
-        String file = "eval_errors.xlsx";
+        String file = path("eval_errors.xlsx");
         List<SheetSpec> sheets = List.of(
                 new SheetSpec("Errors", List.of(
                         new CellSpec("A1", null, "=1/0", null, null),       // #DIV/0!
@@ -343,13 +335,13 @@ class XlsxToolsTest {
 
     @Test
     void testConvertCsvToXlsxTabDelimiterAndTypes() throws IOException {
-        String tsvFile = "data.tsv";
-        storageProvider.writeString(tsvFile, "ID\tActive\tRate\tLabel\n101\ttrue\t12.34\tSample\n102\tfalse\t50\tAnother\n");
+        String tsvFile = path("data.tsv");
+        Files.writeString(Path.of(tsvFile), "ID\tActive\tRate\tLabel\n101\ttrue\t12.34\tSample\n102\tfalse\t50\tAnother\n");
 
-        String xlsxFile = "data_converted.xlsx";
+        String xlsxFile = path("data_converted.xlsx");
         String result = xlsxTools.convertCsvToXlsx(tsvFile, xlsxFile, "\t", null); // null sheetName -> defaults to "Data"
         assertThat(result).contains("Successfully converted CSV to XLSX");
-        assertThat(storageProvider.exists(xlsxFile)).isTrue();
+        assertThat(Files.exists(Path.of(xlsxFile))).isTrue();
 
         String preview = xlsxTools.readXlsxPreview(xlsxFile, 10);
         assertThat(preview).contains("Sheet: Data");
@@ -358,13 +350,8 @@ class XlsxToolsTest {
     }
 
     @Test
-    void testConstructorsAndBuilderFallback() {
-        // Test no-arg constructor
+    void testNoArgConstructor() {
         XlsxTools noArg = new XlsxTools();
         assertThat(noArg).isNotNull();
-
-        // Test null StorageProvider fallback
-        XlsxTools nullProvider = new XlsxTools(null);
-        assertThat(nullProvider).isNotNull();
     }
 }
