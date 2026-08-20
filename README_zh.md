@@ -11,7 +11,7 @@
 
 `spring-ai-harness-utils` 提供了一个统一的、安全的 **MCP (Model Context Protocol) Server**，用于替代 agent 内置的文件系统工具，实现工作区隔离、操作可审计以及版本回滚能力。通过禁用 agent 原生的文件操作并将其路由到本 MCP Server，实现 **一次开发，所有 agent 通用** 的安全文件访问方案。
 
-除 MCP Server 外，本仓库还提供可复用的 Spring AI 组件：上下文压缩 Advisor、基于 `StorageProvider` 的工具、classpath/工作区技能加载、HTTP MCP Tool Gateway，以及可执行的领域技能（例如电子表格工具）。
+除 MCP Server 外，本仓库还提供可复用的 Spring AI 组件：上下文压缩 Advisor、C2 敏感数据脱敏、基于 `StorageProvider` 的工具、classpath/工作区技能加载、HTTP MCP Tool Gateway，以及可执行的领域技能（例如电子表格工具）。
 
 ### 核心特性
 
@@ -24,6 +24,7 @@
 - **📊 文档技能（`spring-ai-skills`）**：基于 Apache POI 的 Spring AI `@Tool` 实现，支持通过 `StorageProvider` 处理 XLSX（创建/预览/编辑/公式/CSV）与 DOCX（创建/预览/替换/批注/接受修订）。
 - **🚪 MCP Tool Gateway**：无状态网关，支持鉴权、基于 Header 的工具目录过滤，以及将 tool call 透明转发到下游 HTTP API。
 - **📈 可插拔可观测性**：可选的 OpenTelemetry 链路追踪，采用零运行开销的装饰器模式 —— 关闭时无任何性能损耗。
+- **🛡️ C2 数据脱敏**：识别并脱敏工具参数和 assistant message 中的手机号、中国大陆身份证、通过 Luhn 校验的银行卡号及邮箱形式支付账号，并支持跨 chunk 安全的流式输出。
 - **🌐 Web 管理控制台**：基于 React 18 + Ant Design 5 构建，提供 Windows 资源管理器风格的文件管理、拖拽操作及 MCP Client JSON-RPC 调试器。
 
 ## 模块结构
@@ -32,7 +33,7 @@
 |------|------|
 | `spring-ai-harness-mcp-server` | 核心 MCP Server，包含文件工具、技能系统、快照回滚及流式多媒体支持 |
 | `spring-ai-harness-server-frontend` | 基于 React 的 Web 管理控制台 |
-| `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助与上下文压缩 Advisor |
+| `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助、上下文压缩 Advisor 与 C2 数据脱敏 |
 | `spring-ai-skills` | 以 Spring AI Tools 形式实现的可执行 Agent Skills（XLSX / DOCX） |
 | `mcp-tool-gateway` | 无状态 MCP 网关：鉴权、权限过滤、HTTP Bypass 调用 |
 | `spring-ai-harness-utils-bom` | BOM（Bill of Materials）版本统一管理 |
@@ -99,6 +100,42 @@ cd spring-ai-harness-server-frontend
 npm install
 npm run dev
 ```
+
+## C2 敏感数据脱敏
+
+创建一个脱敏服务实例，并显式传给两个 Advisor。默认使用 `*` 打码：手机号保留国家码以及号码前3后4位，身份证保留前3后4位，银行卡保留前4后4位，邮箱保留域名。
+
+```java
+C2DataMaskingService maskingService = C2DataMaskingService.builder()
+    .maskCharacter('*')
+    .defaultPhoneRegion("CN")
+    .build();
+
+ChatClient chatClient = ChatClient.builder(chatModel)
+    .defaultAdvisors(
+        ToolCallAdvisor.builder()
+            .toolCallingManager(toolCallingManager)
+            .build(),
+        C2ToolArgumentsMaskingAdvisor.builder(maskingService).build(),
+        C2AssistantMessageMaskingAdvisor.builder(maskingService).build())
+    .build();
+```
+
+`C2ToolArgumentsMaskingAdvisor` 在工具执行前递归脱敏 JSON 字符串节点，数值节点保持不变；如果 malformed JSON 中检测到 C2 数据，则以不包含原始参数的异常安全终止。`C2AssistantMessageMaskingAdvisor` 同时支持普通和流式调用，并通过有界尾部缓冲保证跨 chunk 的敏感值不会先以明文输出。
+
+默认 Builder 会装配 `PhoneNumberRecognizer`、`MainlandChinaIdentityCardRecognizer`、`BankCardRecognizer` 和 `EmailPaymentAccountRecognizer`。使用 `addRecognizer(...)` 可在保留默认识别器的基础上追加自定义规则；使用 `recognizers(...)` 可完全替换默认集合，只启用指定识别器：
+
+```java
+C2DataMaskingService phoneOnly = C2DataMaskingService.builder()
+    .recognizers(List.of(new PhoneNumberRecognizer("CN")))
+    .build();
+
+C2DataMaskingService extended = C2DataMaskingService.builder()
+    .addRecognizer(customRecognizer)
+    .build();
+```
+
+流式尾部缓冲长度会根据实际装配的识别器计算；传入 `recognizers(List.of())` 会关闭识别并使用零长度缓冲。
 
 ## 使用 `spring-ai-skills`（XLSX / DOCX）
 

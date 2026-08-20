@@ -11,7 +11,7 @@ A [Spring AI](https://docs.spring.io/spring-ai/reference/2.0-SNAPSHOT/index.html
 
 `spring-ai-harness-utils` provides a unified, secure **MCP (Model Context Protocol) Server** that replaces agents' built-in file system tools with workspace-isolated, auditable, and rollback-capable alternatives. By disabling agents' native file operations and routing them through this MCP Server, you get **develop once, secure all agents**.
 
-Alongside the MCP server, the project ships reusable Spring AI building blocks: context-compact advisors, storage-backed tools, classpath/workspace skill loading, an HTTP MCP tool gateway, and executable domain skills such as spreadsheet tooling.
+Alongside the MCP server, the project ships reusable Spring AI building blocks: context-compact advisors, C2 sensitive-data masking, storage-backed tools, classpath/workspace skill loading, an HTTP MCP tool gateway, and executable domain skills such as spreadsheet tooling.
 
 ### Key Features
 
@@ -24,6 +24,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 - **📊 Document Skills (`spring-ai-skills`)**: Apache POI-based Spring AI `@Tool` implementations for XLSX (create/preview/edit/formulas/CSV) and DOCX (create/preview/replace/comments/accept revisions) through `StorageProvider`.
 - **🚪 MCP Tool Gateway**: Stateless gateway that authenticates requests, filters tool catalogs by headers, and transparently forwards tool calls to downstream HTTP APIs.
 - **📈 Pluggable Observability**: Optional OpenTelemetry tracing with zero-overhead decorator pattern — no runtime cost when disabled.
+- **🛡️ C2 Data Masking**: Detect and mask phone numbers, mainland China ID cards, Luhn-valid bank cards, and email payment accounts in tool arguments and assistant messages, including chunk-safe streaming responses.
 - **🌐 Web Management Console**: React 18 + Ant Design 5 frontend with Windows Explorer-style file management, drag-and-drop, and an MCP Client JSON-RPC debugger.
 
 ## Modules
@@ -32,7 +33,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 |--------|-------------|
 | `spring-ai-harness-mcp-server` | Core MCP Server with file tools, skills, snapshots, and streaming multimedia support |
 | `spring-ai-harness-server-frontend` | React-based web management console |
-| `spring-ai-harness-utils` | Storage providers, harness tools, skills helpers, and context-compact advisors |
+| `spring-ai-harness-utils` | Storage providers, harness tools, skills helpers, context-compact advisors, and C2 data masking |
 | `spring-ai-skills` | Executable agent skills implemented as Spring AI Tools (XLSX / DOCX) |
 | `mcp-tool-gateway` | Stateless MCP gateway with auth, permission filtering, and HTTP tool bypass |
 | `spring-ai-harness-utils-bom` | Bill of Materials for version management |
@@ -99,6 +100,42 @@ cd spring-ai-harness-server-frontend
 npm install
 npm run dev
 ```
+
+## C2 Sensitive-Data Masking
+
+Create one masking service and pass it to both advisors. The default mask character is `*`; phone numbers retain the country code plus the first 3 and last 4 national digits, ID cards retain the first 3 and last 4 characters, bank cards retain the first and last 4 digits, and email domains remain visible.
+
+```java
+C2DataMaskingService maskingService = C2DataMaskingService.builder()
+    .maskCharacter('*')
+    .defaultPhoneRegion("CN")
+    .build();
+
+ChatClient chatClient = ChatClient.builder(chatModel)
+    .defaultAdvisors(
+        ToolCallAdvisor.builder()
+            .toolCallingManager(toolCallingManager)
+            .build(),
+        C2ToolArgumentsMaskingAdvisor.builder(maskingService).build(),
+        C2AssistantMessageMaskingAdvisor.builder(maskingService).build())
+    .build();
+```
+
+`C2ToolArgumentsMaskingAdvisor` recursively masks JSON string values before a tool runs; JSON numbers remain unchanged. If malformed tool JSON contains detectable C2 data, the call fails closed without including the original arguments in the exception message. `C2AssistantMessageMaskingAdvisor` supports both regular and streaming calls and buffers a bounded tail so values split across chunks are masked before release.
+
+The default builder installs `PhoneNumberRecognizer`, `MainlandChinaIdentityCardRecognizer`, `BankCardRecognizer`, and `EmailPaymentAccountRecognizer`. Add a custom recognizer while retaining these defaults with `addRecognizer(...)`, or replace the complete set for selective detection:
+
+```java
+C2DataMaskingService phoneOnly = C2DataMaskingService.builder()
+    .recognizers(List.of(new PhoneNumberRecognizer("CN")))
+    .build();
+
+C2DataMaskingService extended = C2DataMaskingService.builder()
+    .addRecognizer(customRecognizer)
+    .build();
+```
+
+The streaming tail size is calculated from the effective recognizers. Supplying `recognizers(List.of())` disables detection and buffering.
 
 ## Using `spring-ai-skills` (XLSX / DOCX)
 

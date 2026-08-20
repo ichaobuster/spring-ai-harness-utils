@@ -36,6 +36,7 @@
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 
         <spring-ai.version>1.1.8</spring-ai.version>
+        <libphonenumber.version>9.0.37</libphonenumber.version>
 <!--        <spring-framework.version>7.0.8</spring-framework.version>-->
         <spring-boot.version>3.5.15</spring-boot.version>
 

@@ -14,12 +14,20 @@ The project consists of the following core sub-modules:
 2. **`spring-ai-harness-server-frontend`**: A management Web console built with React 18 + Ant Design 5 + Vite, featuring a Windows Explorer-style file manager and an MCP Client debugger.
 3. **`mcp-tool-gateway`**: A stateless MCP gateway server built on Spring Boot that supports configurable header extraction, authentication validation, dynamic tool listing (filtered by headers), and transparent HTTP bypass tool invocation.
 4. **`spring-ai-skills`**: A library of executable agent skills exposed as Spring AI `@Tool` beans/classes (Apache POI-based XLSX and DOCX tools), with bundled classpath `SKILL.md` prompts loadable via `SkillUtil`.
-5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, and context-compact advisors consumed by other modules.
+5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, context-compact advisors, and C2 sensitive-data masking for tool arguments and assistant messages.
 
 ### Unified Design Principles & Security Standards
 - **No hardcoded FQCNs in code**: Classes must be imported via explicit `import` statements. Using full `packageName.ClassName` paths in method signatures, type declarations, or `new` instantiations is strictly forbidden.
 - **Complete workspace isolation**: All underlying physical file operations must bind to the `{system}-{agent}-{user}` prefix. All paths must be validated before processing; absolute paths (starting with `/`) must be rejected with a `SecurityException`.
 - **Documentation consistency first**: Any changes to constants (e.g., read line limits, image edge limits) must also update the corresponding `@McpTool` English descriptions for LLM consumption. Both sides must stay in sync.
+
+### C2 Sensitive-Data Masking (`spring-ai-harness-utils`)
+- `C2DataMaskingService` defaults to four public recognizers under `masking.recognizer`: `PhoneNumberRecognizer`, `MainlandChinaIdentityCardRecognizer`, `BankCardRecognizer`, and `EmailPaymentAccountRecognizer`. Detection returns match ranges without exposing raw values.
+- Builder `addRecognizer(...)` appends to the default recognizer set, while `recognizers(...)` replaces it completely. Streaming buffer length must be derived from the effective recognizer set; an empty set disables detection and uses a zero-length tail buffer.
+- The default mask character is `*`. Phone numbers retain the country code plus the first 3 and last 4 national digits; ID cards retain the first 3 and last 4 characters; bank cards retain the first 4 and last 4 digits; email domains remain visible.
+- `C2ToolArgumentsMaskingAdvisor` recursively masks JSON string values before tool execution. Numeric JSON values remain unchanged. Malformed JSON containing detectable C2 data must fail closed without logging the original arguments.
+- `C2AssistantMessageMaskingAdvisor` masks all assistant generations for non-stream and stream calls. Streaming uses a per-subscription rolling buffer sized to the maximum recognizer match length so sensitive values split across chunks are not released as plaintext.
+- Both advisors must be built with the same explicit `C2DataMaskingService` instance. Their default order is inside the standard `ToolCallAdvisor` and chat-memory advisors so tools and persisted memory receive masked content.
 
 ---
 
