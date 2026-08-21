@@ -11,7 +11,7 @@ A [Spring AI](https://docs.spring.io/spring-ai/reference/2.0-SNAPSHOT/index.html
 
 `spring-ai-harness-utils` provides a unified, secure **MCP (Model Context Protocol) Server** that replaces agents' built-in file system tools with workspace-isolated, auditable, and rollback-capable alternatives. By disabling agents' native file operations and routing them through this MCP Server, you get **develop once, secure all agents**.
 
-Alongside the MCP server, the project ships reusable Spring AI building blocks: context-compact advisors, C2 sensitive-data masking, storage-backed tools, classpath/workspace skill loading, an HTTP MCP tool gateway, and executable domain skills such as spreadsheet tooling.
+Alongside the MCP server, the project ships reusable Spring AI building blocks: context-compact and content-moderation advisors, C2 sensitive-data masking, storage-backed tools, classpath/workspace skill loading, an HTTP MCP tool gateway, and executable domain skills such as spreadsheet tooling.
 
 ### Key Features
 
@@ -25,6 +25,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 - **🚪 MCP Tool Gateway**: Stateless gateway that authenticates requests, filters tool catalogs by headers, and transparently forwards tool calls to downstream HTTP APIs.
 - **📈 Pluggable Observability**: Optional OpenTelemetry tracing with zero-overhead decorator pattern — no runtime cost when disabled.
 - **🛡️ C2 Data Masking**: Detect and mask phone numbers, mainland China ID cards, Luhn-valid bank cards, and email payment accounts in tool arguments and assistant messages, including chunk-safe streaming responses.
+- **🚦 Input/Output Moderation**: Moderate recent user history and assistant output for call and stream flows, with bounded requests, streaming throttling, and optional OTel error reporting.
 - **🌐 Web Management Console**: React 18 + Ant Design 5 frontend with Windows Explorer-style file management, drag-and-drop, and an MCP Client JSON-RPC debugger.
 
 ## Modules
@@ -33,7 +34,7 @@ Alongside the MCP server, the project ships reusable Spring AI building blocks: 
 |--------|-------------|
 | `spring-ai-harness-mcp-server` | Core MCP Server with file tools, skills, snapshots, and streaming multimedia support |
 | `spring-ai-harness-server-frontend` | React-based web management console |
-| `spring-ai-harness-utils` | Storage providers, harness tools, skills helpers, context-compact advisors, and C2 data masking |
+| `spring-ai-harness-utils` | Storage providers, harness tools, skills helpers, context-compact/moderation advisors, and C2 data masking |
 | `spring-ai-skills` | Executable agent skills implemented as Spring AI Tools (XLSX / DOCX) |
 | `mcp-tool-gateway` | Stateless MCP gateway with auth, permission filtering, and HTTP tool bypass |
 | `spring-ai-harness-utils-bom` | Bill of Materials for version management |
@@ -136,6 +137,35 @@ C2DataMaskingService extended = C2DataMaskingService.builder()
 ```
 
 The streaming tail size is calculated from the effective recognizers. Supplying `recognizers(List.of())` disables detection and buffering.
+
+## Input and Output Moderation
+
+Build both advisors with a Spring AI `ModerationModel`. The input advisor runs after chat-memory expansion and selects as many recent user messages as fit in its budget. The output advisor checks every regular assistant generation and uses a character-based Spring AI `TextSplitter` with a 90% stride and overlapping context for long content.
+
+```java
+InputModerationAdvisor inputModeration = InputModerationAdvisor.builder(moderationModel)
+    .maxModerationCharacters(5_000)
+    .observationRegistry(observationRegistry)
+    .build();
+
+OutputModerationAdvisor outputModeration = OutputModerationAdvisor.builder(moderationModel)
+    .maxModerationCharacters(5_000)
+    .streamModerationCharacterInterval(4_500)
+    .streamModerationChunkInterval(100)
+    .streamModerationMode(OutputModerationAdvisor.StreamModerationMode.RELEASE_FIRST)
+    .observationRegistry(observationRegistry)
+    .build();
+
+ChatClient chatClient = ChatClient.builder(chatModel)
+    .defaultAdvisors(inputModeration, outputModeration)
+    .build();
+```
+
+The default maximum is 5,000 Java `String.length()` characters. Long output uses overlapping windows of at most 5,000 characters with a 4,500-character stride and 500-character context. Streaming moderation runs when any generation accumulates 4,500 new characters, after 100 source response chunks, on any finish reason, or when the stream completes. Generation state uses the provider's `index` metadata when available, so sparse or reordered choices remain isolated.
+
+`RELEASE_FIRST` is the default: non-terminal content is released and then moderated serially, while a finish chunk is held until its tail passes. Its maximum exposure is the configured character interval plus one provider chunk. `MODERATE_FIRST` buffers each batch and releases its original response chunks only after they pass, so a rejected current batch is never emitted. Boundary context from a previously accepted batch may still be part of a later rejected window.
+
+Regular-call violations throw `ModerationViolationException`. Streaming violations end with `finishReason=content_filter`; the assistant metadata contains `stop=true`, `moderation_error`, `moderation_generation_index`, `moderation_window_start`, `moderation_window_end`, and `moderation_safe_through`, and rejected content is omitted. Window offsets are UTF-16 positions measured with `String.length()` and describe the flagged moderation window, not an exact unsafe-token span. Moderation-model failures fail open, are logged without the original content, and mark the current Micrometer Observation as erroneous when an `ObservationRegistry` is configured.
 
 ## Using `spring-ai-skills` (XLSX / DOCX)
 

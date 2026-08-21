@@ -14,7 +14,7 @@ The project consists of the following core sub-modules:
 2. **`spring-ai-harness-server-frontend`**: A management Web console built with React 18 + Ant Design 5 + Vite, featuring a Windows Explorer-style file manager and an MCP Client debugger.
 3. **`mcp-tool-gateway`**: A stateless MCP gateway server built on Spring Boot that supports configurable header extraction, authentication validation, dynamic tool listing (filtered by headers), and transparent HTTP bypass tool invocation.
 4. **`spring-ai-skills`**: A library of executable agent skills exposed as Spring AI `@Tool` beans/classes (Apache POI-based XLSX and DOCX tools), with bundled classpath `SKILL.md` prompts loadable via `SkillUtil`.
-5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, context-compact advisors, and C2 sensitive-data masking for tool arguments and assistant messages.
+5. **`spring-ai-harness-utils`**: Shared library providing `StorageProvider`, harness tools, skill utilities, context-compact advisors, moderation advisors, and C2 sensitive-data masking for tool arguments and assistant messages.
 
 ### Unified Design Principles & Security Standards
 - **No hardcoded FQCNs in code**: Classes must be imported via explicit `import` statements. Using full `packageName.ClassName` paths in method signatures, type declarations, or `new` instantiations is strictly forbidden.
@@ -28,6 +28,14 @@ The project consists of the following core sub-modules:
 - `C2ToolArgumentsMaskingAdvisor` recursively masks JSON string values before tool execution. Numeric JSON values remain unchanged. Malformed JSON containing detectable C2 data must fail closed without logging the original arguments.
 - `C2AssistantMessageMaskingAdvisor` masks all assistant generations for non-stream and stream calls. Streaming uses a per-subscription rolling buffer sized to the maximum recognizer match length so sensitive values split across chunks are not released as plaintext.
 - Both advisors must be built with the same explicit `C2DataMaskingService` instance. Their default order is inside the standard `ToolCallAdvisor` and chat-memory advisors so tools and persisted memory receive masked content.
+
+### Input/Output Moderation (`spring-ai-harness-utils`)
+- `InputModerationAdvisor` moderates the newest user-message history after chat-memory expansion. It walks user messages newest-first under a configurable character budget, retains the suffix of the boundary message, and submits the selected content in chronological order.
+- `OutputModerationAdvisor` moderates every non-stream assistant generation with overlapping character windows. The default maximum is 5,000 Java `String.length()` characters, with a 4,500-character stride and 500-character context.
+- Streaming moderation triggers when any generation reaches the configurable character interval (default 4,500), after 100 source response chunks, on a finish reason, or at stream completion. Generation state must use provider `index` metadata when available and fall back to response ordinal.
+- `RELEASE_FIRST` is the default and releases non-terminal chunks before a serialized moderation call while holding finish chunks. `MODERATE_FIRST` buffers the current batch until it passes. Both modes must retain 10% cross-batch context and cancel upstream after rejection.
+- Non-stream violations throw `ModerationViolationException`. Stream violations use `finishReason=content_filter` plus assistant metadata `stop=true`, `moderation_error`, generation index, flagged window offsets, and last safe offset, and must not include rejected text, tool calls, or media. Offsets use Java UTF-16 `String.length()` positions.
+- Moderation-model failures fail open, log without including moderated content, and mark the current Micrometer Observation as erroneous when one is available for an OpenTelemetry bridge.
 
 ---
 

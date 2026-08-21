@@ -11,7 +11,7 @@
 
 `spring-ai-harness-utils` 提供了一个统一的、安全的 **MCP (Model Context Protocol) Server**，用于替代 agent 内置的文件系统工具，实现工作区隔离、操作可审计以及版本回滚能力。通过禁用 agent 原生的文件操作并将其路由到本 MCP Server，实现 **一次开发，所有 agent 通用** 的安全文件访问方案。
 
-除 MCP Server 外，本仓库还提供可复用的 Spring AI 组件：上下文压缩 Advisor、C2 敏感数据脱敏、基于 `StorageProvider` 的工具、classpath/工作区技能加载、HTTP MCP Tool Gateway，以及可执行的领域技能（例如电子表格工具）。
+除 MCP Server 外，本仓库还提供可复用的 Spring AI 组件：上下文压缩与内容审核 Advisor、C2 敏感数据脱敏、基于 `StorageProvider` 的工具、classpath/工作区技能加载、HTTP MCP Tool Gateway，以及可执行的领域技能（例如电子表格工具）。
 
 ### 核心特性
 
@@ -25,6 +25,7 @@
 - **🚪 MCP Tool Gateway**：无状态网关，支持鉴权、基于 Header 的工具目录过滤，以及将 tool call 透明转发到下游 HTTP API。
 - **📈 可插拔可观测性**：可选的 OpenTelemetry 链路追踪，采用零运行开销的装饰器模式 —— 关闭时无任何性能损耗。
 - **🛡️ C2 数据脱敏**：识别并脱敏工具参数和 assistant message 中的手机号、中国大陆身份证、通过 Luhn 校验的银行卡号及邮箱形式支付账号，并支持跨 chunk 安全的流式输出。
+- **🚦 输入/输出内容审核**：审核最近的 user message 历史和 assistant 输出，支持普通与流式调用、请求长度限制、流式节流和可选 OTel 错误记录。
 - **🌐 Web 管理控制台**：基于 React 18 + Ant Design 5 构建，提供 Windows 资源管理器风格的文件管理、拖拽操作及 MCP Client JSON-RPC 调试器。
 
 ## 模块结构
@@ -33,7 +34,7 @@
 |------|------|
 | `spring-ai-harness-mcp-server` | 核心 MCP Server，包含文件工具、技能系统、快照回滚及流式多媒体支持 |
 | `spring-ai-harness-server-frontend` | 基于 React 的 Web 管理控制台 |
-| `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助、上下文压缩 Advisor 与 C2 数据脱敏 |
+| `spring-ai-harness-utils` | 存储抽象、Harness 工具、技能辅助、上下文压缩/内容审核 Advisor 与 C2 数据脱敏 |
 | `spring-ai-skills` | 以 Spring AI Tools 形式实现的可执行 Agent Skills（XLSX / DOCX） |
 | `mcp-tool-gateway` | 无状态 MCP 网关：鉴权、权限过滤、HTTP Bypass 调用 |
 | `spring-ai-harness-utils-bom` | BOM（Bill of Materials）版本统一管理 |
@@ -136,6 +137,35 @@ C2DataMaskingService extended = C2DataMaskingService.builder()
 ```
 
 流式尾部缓冲长度会根据实际装配的识别器计算；传入 `recognizers(List.of())` 会关闭识别并使用零长度缓冲。
+
+## 输入与输出内容审核
+
+两个 Advisor 都显式传入 Spring AI `ModerationModel`。输入审核在 ChatMemory 展开后执行，在字符预算内从最新的 user message 向前收集；输出审核覆盖普通调用的每个 assistant generation，并使用基于字符数的 Spring AI `TextSplitter`，以最大字数的 90% 为步长并保留重叠上下文。
+
+```java
+InputModerationAdvisor inputModeration = InputModerationAdvisor.builder(moderationModel)
+    .maxModerationCharacters(5_000)
+    .observationRegistry(observationRegistry)
+    .build();
+
+OutputModerationAdvisor outputModeration = OutputModerationAdvisor.builder(moderationModel)
+    .maxModerationCharacters(5_000)
+    .streamModerationCharacterInterval(4_500)
+    .streamModerationChunkInterval(100)
+    .streamModerationMode(OutputModerationAdvisor.StreamModerationMode.RELEASE_FIRST)
+    .observationRegistry(observationRegistry)
+    .build();
+
+ChatClient chatClient = ChatClient.builder(chatModel)
+    .defaultAdvisors(inputModeration, outputModeration)
+    .build();
+```
+
+默认最大字数为 5,000，按 Java `String.length()` 计算。长输出使用最大 5,000 字符的重叠窗口，步长为 4,500 字符，并保留 500 字符上下文。任一 generation 累计 4,500 个新字符、累计 100 个源响应 chunk、出现任意 finish reason 或流结束时都会触发审核。generation 状态优先使用 provider 的 `index` metadata，因此稀疏或乱序 choices 不会互相串线。
+
+`RELEASE_FIRST` 是默认模式：非终态内容先释放再串行审核，finish chunk 会等待尾部审核完成；最坏可能先释放“字符间隔加一个 provider chunk”的内容。`MODERATE_FIRST` 会缓存当前批次，审核通过后才按原顺序释放响应 chunk，因此违规的当前批次不会输出；但上一批已通过的边界上下文仍可能出现在后续违规窗口中。
+
+普通调用审核不通过时抛出 `ModerationViolationException`。流式审核不通过时以 `finishReason=content_filter` 结束，assistant metadata 包含 `stop=true`、`moderation_error`、`moderation_generation_index`、`moderation_window_start`、`moderation_window_end` 和 `moderation_safe_through`，且不会携带被拒绝的正文。偏移量按 UTF-16 的 `String.length()` 位置计算，描述被判定违规的审核窗口，而不是精确违规词范围。ModerationModel 调用失败时 fail-open，不记录原始审核内容；配置 `ObservationRegistry` 且存在当前 Observation 时会记录 error，以便 OTel bridge 写入 span。
 
 ## 使用 `spring-ai-skills`（XLSX / DOCX）
 
