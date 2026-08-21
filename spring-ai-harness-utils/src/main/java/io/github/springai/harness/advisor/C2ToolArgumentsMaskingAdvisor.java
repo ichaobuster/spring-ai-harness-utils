@@ -15,11 +15,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -59,8 +55,8 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 		Assert.notNull(chain, "chain must not be null");
 
 		return Flux.defer(() -> {
-			Map<Integer, ToolCallAccumulator> accumulators = new LinkedHashMap<>();
-			Map<Integer, Generation> lastGenerations = new LinkedHashMap<>();
+			Map<GenerationKey, ToolCallAccumulator> accumulators = new LinkedHashMap<>();
+			Map<GenerationKey, Generation> lastGenerations = new LinkedHashMap<>();
 			AtomicReference<ChatClientResponse> lastResponse = new AtomicReference<>();
 			Flux<ChatClientResponse> stripped = chain.nextStream(request).map(response -> {
 				lastResponse.set(response);
@@ -157,7 +153,7 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 	}
 
 	private ChatClientResponse stripAndCollectToolCalls(ChatClientResponse response,
-			Map<Integer, ToolCallAccumulator> accumulators, Map<Integer, Generation> lastGenerations) {
+	                                                    Map<GenerationKey, ToolCallAccumulator> accumulators, Map<GenerationKey, Generation> lastGenerations) {
 		if (response == null || response.chatResponse() == null) {
 			return response;
 		}
@@ -166,11 +162,12 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 		List<Generation> generations = new ArrayList<>(chatResponse.getResults().size());
 		for (int i = 0; i < chatResponse.getResults().size(); i++) {
 			Generation generation = chatResponse.getResults().get(i);
-			lastGenerations.put(i, generation);
+			GenerationKey generationKey = generationKey(generation, i);
+			lastGenerations.put(generationKey, generation);
 			AssistantMessage message = generation.getOutput();
 			if (message.hasToolCalls()) {
 				modified = true;
-				accumulators.computeIfAbsent(i, key -> new ToolCallAccumulator()).add(message.getToolCalls());
+				accumulators.computeIfAbsent(generationKey, key -> new ToolCallAccumulator()).add(message.getToolCalls());
 				generations.add(new Generation(copyMessage(message, List.of()), generation.getMetadata()));
 			}
 			else {
@@ -186,13 +183,13 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 	}
 
 	private Flux<ChatClientResponse> emitMaskedToolCalls(ChatClientResponse lastResponse,
-			Map<Integer, ToolCallAccumulator> accumulators, Map<Integer, Generation> lastGenerations) {
+	                                                     Map<GenerationKey, ToolCallAccumulator> accumulators, Map<GenerationKey, Generation> lastGenerations) {
 		if (lastResponse == null || lastResponse.chatResponse() == null || accumulators.isEmpty()) {
 			return Flux.empty();
 		}
 		ChatResponse chatResponse = lastResponse.chatResponse();
 		List<Generation> generations = new ArrayList<>();
-		for (Map.Entry<Integer, ToolCallAccumulator> entry : accumulators.entrySet()) {
+		for (Map.Entry<GenerationKey, ToolCallAccumulator> entry : accumulators.entrySet()) {
 			Generation source = Objects.requireNonNull(lastGenerations.get(entry.getKey()),
 					"stream generation must be available for every tool call accumulator");
 			List<AssistantMessage.ToolCall> calls = maskToolCalls(entry.getValue().build());
@@ -209,6 +206,14 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 		return Flux.just(masked);
 	}
 
+	private GenerationKey generationKey(Generation generation, int ordinal) {
+		Object index = generation.getOutput().getMetadata().get("index");
+		if (index == null && generation.getMetadata().containsKey("index")) {
+			index = generation.getMetadata().get("index");
+		}
+		return index == null ? new GenerationKey("ordinal:" + ordinal) : new GenerationKey("index:" + index);
+	}
+
 	private AssistantMessage copyMessage(AssistantMessage source, List<AssistantMessage.ToolCall> toolCalls) {
 		return AssistantMessage.builder()
 				.content(source.getText())
@@ -216,6 +221,9 @@ public final class C2ToolArgumentsMaskingAdvisor implements BaseAdvisor {
 				.toolCalls(toolCalls)
 				.media(source.getMedia())
 				.build();
+	}
+
+	private record GenerationKey(String value) {
 	}
 
 	private static final class ToolCallAccumulator {

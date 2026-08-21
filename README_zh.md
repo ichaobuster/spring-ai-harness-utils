@@ -135,7 +135,9 @@ C2DataMaskingService extended = C2DataMaskingService.builder()
     .build();
 ```
 
-流式尾部缓冲长度会根据实际装配的识别器计算；传入 `recognizers(List.of())` 会关闭识别并使用零长度缓冲。
+流式尾部缓冲和边界上下文长度会根据实际装配的识别器计算；传入 `recognizers(List.of())` 会关闭识别并使用零长度缓冲。
+
+有关识别规则、自定义 Recognizer、流式行为和 Advisor 顺序的完整说明，请参阅 [C2 数据识别与脱敏](docs/c2-data-masking.md)。
 
 ## 使用 `spring-ai-skills`（XLSX / DOCX）
 

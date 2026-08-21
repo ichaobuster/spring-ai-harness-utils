@@ -14,11 +14,10 @@ import org.springframework.util.Assert;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -58,8 +57,8 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 		Assert.notNull(chain, "chain must not be null");
 
 		return Flux.defer(() -> {
-			Map<Integer, C2DataMaskingService.StreamingMaskingSession> sessions = new TreeMap<>();
-			Map<Integer, Generation> lastGenerations = new HashMap<>();
+			Map<GenerationKey, C2DataMaskingService.StreamingMaskingSession> sessions = new LinkedHashMap<>();
+			Map<GenerationKey, Generation> lastGenerations = new LinkedHashMap<>();
 			AtomicReference<ChatClientResponse> lastResponse = new AtomicReference<>();
 
 			Flux<ChatClientResponse> masked = chain.nextStream(request).map(response -> {
@@ -103,8 +102,8 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 	}
 
 	private ChatClientResponse maskStreamChunk(ChatClientResponse response,
-			Map<Integer, C2DataMaskingService.StreamingMaskingSession> sessions,
-			Map<Integer, Generation> lastGenerations) {
+			Map<GenerationKey, C2DataMaskingService.StreamingMaskingSession> sessions,
+			Map<GenerationKey, Generation> lastGenerations) {
 		if (response == null || response.chatResponse() == null) {
 			return response;
 		}
@@ -112,14 +111,15 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 		List<Generation> generations = new ArrayList<>(chatResponse.getResults().size());
 		for (int i = 0; i < chatResponse.getResults().size(); i++) {
 			Generation generation = chatResponse.getResults().get(i);
-			lastGenerations.put(i, generation);
+			GenerationKey generationKey = generationKey(generation, i);
+			lastGenerations.put(generationKey, generation);
 			AssistantMessage message = generation.getOutput();
 			String text = message.getText();
 			if (text == null) {
 				generations.add(generation);
 				continue;
 			}
-			C2DataMaskingService.StreamingMaskingSession session = sessions.computeIfAbsent(i,
+			C2DataMaskingService.StreamingMaskingSession session = sessions.computeIfAbsent(generationKey,
 					key -> this.maskingService.newStreamingSession());
 			String safeText = session.accept(text);
 			generations.add(new Generation(copyMessage(message, safeText), generation.getMetadata()));
@@ -130,14 +130,14 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 	}
 
 	private Flux<ChatClientResponse> flushSessions(ChatClientResponse lastResponse,
-			Map<Integer, C2DataMaskingService.StreamingMaskingSession> sessions,
-			Map<Integer, Generation> lastGenerations) {
+			Map<GenerationKey, C2DataMaskingService.StreamingMaskingSession> sessions,
+			Map<GenerationKey, Generation> lastGenerations) {
 		if (lastResponse == null || lastResponse.chatResponse() == null || sessions.isEmpty()) {
 			return Flux.empty();
 		}
 		ChatResponse chatResponse = lastResponse.chatResponse();
 		List<Generation> generations = new ArrayList<>();
-		for (Map.Entry<Integer, C2DataMaskingService.StreamingMaskingSession> entry : sessions.entrySet()) {
+		for (Map.Entry<GenerationKey, C2DataMaskingService.StreamingMaskingSession> entry : sessions.entrySet()) {
 			Generation source = Objects.requireNonNull(lastGenerations.get(entry.getKey()),
 					"stream generation must be available for every masking session");
 			String remaining = entry.getValue().finish();
@@ -155,6 +155,14 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 		return Flux.just(flushed);
 	}
 
+	private GenerationKey generationKey(Generation generation, int ordinal) {
+		Object index = generation.getOutput().getMetadata().get("index");
+		if (index == null && generation.getMetadata().containsKey("index")) {
+			index = generation.getMetadata().get("index");
+		}
+		return index == null ? new GenerationKey("ordinal:" + ordinal) : new GenerationKey("index:" + index);
+	}
+
 	private AssistantMessage copyMessage(AssistantMessage source, String content) {
 		return AssistantMessage.builder()
 				.content(content)
@@ -169,6 +177,9 @@ public final class C2AssistantMessageMaskingAdvisor implements BaseAdvisor {
 				.content(content)
 				.properties(source.getMetadata())
 				.build();
+	}
+
+	private record GenerationKey(String value) {
 	}
 
 	public static final class Builder {

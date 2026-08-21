@@ -16,8 +16,11 @@ public final class EmailPaymentAccountRecognizer implements C2DataRecognizer {
 
 	private static final int MAX_MATCH_LENGTH = 254;
 
+	private static final String LOCAL_ATOM = "[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+";
+
 	private static final Pattern PATTERN = Pattern.compile(
-			"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])([A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64})@([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)(?![A-Za-z0-9-])");
+			"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])(" + LOCAL_ATOM + "(?:\\." + LOCAL_ATOM
+					+ ")*)@([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)(?![A-Za-z0-9-])");
 
 	@Override
 	public List<C2DataMatch> detect(String text) {
@@ -27,7 +30,7 @@ public final class EmailPaymentAccountRecognizer implements C2DataRecognizer {
 		List<C2DataMatch> matches = new ArrayList<>();
 		Matcher matcher = PATTERN.matcher(text);
 		while (matcher.find()) {
-			if (matcher.group().length() <= MAX_MATCH_LENGTH) {
+			if (matcher.group().length() <= MAX_MATCH_LENGTH && matcher.group(1).length() <= 64) {
 				matches.add(new C2DataMatch(C2DataType.PAYMENT_ACCOUNT, matcher.start(), matcher.end()));
 			}
 		}
@@ -37,6 +40,16 @@ public final class EmailPaymentAccountRecognizer implements C2DataRecognizer {
 	@Override
 	public int maxMatchLength() {
 		return MAX_MATCH_LENGTH;
+	}
+
+	@Override
+	public int maxLookbehindLength() {
+		return 1;
+	}
+
+	@Override
+	public int maxLookaheadLength() {
+		return 1;
 	}
 
 }

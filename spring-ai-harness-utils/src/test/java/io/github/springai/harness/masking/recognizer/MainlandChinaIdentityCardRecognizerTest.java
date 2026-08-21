@@ -30,6 +30,8 @@ class MainlandChinaIdentityCardRecognizerTest {
 	@Test
 	void exposesItsBoundaryAndHandlesEmptyText() {
 		assertThat(this.recognizer.maxMatchLength()).isEqualTo(18);
+		assertThat(this.recognizer.maxLookbehindLength()).isEqualTo(1);
+		assertThat(this.recognizer.maxLookaheadLength()).isEqualTo(1);
 		assertThat(this.recognizer.detect(null)).isEmpty();
 		assertThat(this.recognizer.detect("")).isEmpty();
 	}

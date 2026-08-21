@@ -135,6 +135,33 @@ class C2ToolArgumentsMaskingAdvisorTest {
 	}
 
 	@Test
+	void isolatesInterleavedStreamToolCallsByStableChoiceIndex() {
+		ChatClientRequest request = request();
+		StreamAdvisorChain chain = mock(StreamAdvisorChain.class);
+		AssistantMessage.ToolCall firstStart = new AssistantMessage.ToolCall("call-1", "function", "sendPhone",
+				"{\"value\":\"13800");
+		AssistantMessage.ToolCall secondStart = new AssistantMessage.ToolCall("call-2", "function", "sendEmail",
+				"{\"value\":\"alice");
+		AssistantMessage.ToolCall firstEnd = new AssistantMessage.ToolCall("call-1", "", "", "138000\"}");
+		AssistantMessage.ToolCall secondEnd = new AssistantMessage.ToolCall("call-2", "", "", "@example.com\"}");
+		when(chain.nextStream(request))
+				.thenReturn(Flux.just(response(indexedToolMessage(0, firstStart)),
+						response(indexedToolMessage(1, secondStart)), response(indexedToolMessage(0, firstEnd)),
+						response(indexedToolMessage(1, secondEnd)), emptyResponse()));
+
+		List<ChatClientResponse> results = this.advisor.adviseStream(request, chain).collectList().block();
+		List<Generation> emitted = results.get(results.size() - 1).chatResponse().getResults();
+
+		assertThat(emitted).hasSize(2);
+		assertThat(emitted.get(0).getOutput().getMetadata()).containsEntry("index", 0);
+		assertThat(emitted.get(0).getOutput().getToolCalls()).singleElement()
+				.satisfies(call -> assertThat(call.arguments()).contains("138****8000"));
+		assertThat(emitted.get(1).getOutput().getMetadata()).containsEntry("index", 1);
+		assertThat(emitted.get(1).getOutput().getToolCalls()).singleElement()
+				.satisfies(call -> assertThat(call.arguments()).contains("a****@example.com"));
+	}
+
+	@Test
 	void returnsOriginalForResponsesWithoutToolCalls() {
 		ChatClientResponse response = response(new AssistantMessage("safe"));
 
@@ -157,6 +184,14 @@ class C2ToolArgumentsMaskingAdvisorTest {
 
 	private AssistantMessage toolMessage(AssistantMessage.ToolCall call) {
 		return AssistantMessage.builder().content("").toolCalls(List.of(call)).build();
+	}
+
+	private AssistantMessage indexedToolMessage(int index, AssistantMessage.ToolCall call) {
+		return AssistantMessage.builder()
+				.content("")
+				.properties(Map.of("index", index))
+				.toolCalls(List.of(call))
+				.build();
 	}
 
 	private ChatClientResponse response(AssistantMessage message) {

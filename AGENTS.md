@@ -23,10 +23,10 @@ The project consists of the following core sub-modules:
 
 ### C2 Sensitive-Data Masking (`spring-ai-harness-utils`)
 - `C2DataMaskingService` defaults to four public recognizers under `masking.recognizer`: `PhoneNumberRecognizer`, `MainlandChinaIdentityCardRecognizer`, `BankCardRecognizer`, and `EmailPaymentAccountRecognizer`. Detection returns match ranges without exposing raw values.
-- Builder `addRecognizer(...)` appends to the default recognizer set, while `recognizers(...)` replaces it completely. Streaming buffer length must be derived from the effective recognizer set; an empty set disables detection and uses a zero-length tail buffer.
+- Builder `addRecognizer(...)` appends to the default recognizer set, while `recognizers(...)` replaces it completely. Streaming buffer and boundary context lengths must be derived from the effective recognizer set; an empty set disables detection and uses a zero-length tail buffer.
 - The default mask character is `*`. Phone numbers retain the country code plus the first 3 and last 4 national digits; ID cards retain the first 3 and last 4 characters; bank cards retain the first 4 and last 4 digits; email domains remain visible.
 - `C2ToolArgumentsMaskingAdvisor` recursively masks JSON string values before tool execution. Numeric JSON values remain unchanged. Malformed JSON containing detectable C2 data must fail closed without logging the original arguments.
-- `C2AssistantMessageMaskingAdvisor` masks all assistant generations for non-stream and stream calls. Streaming uses a per-subscription rolling buffer sized to the maximum recognizer match length so sensitive values split across chunks are not released as plaintext.
+- `C2AssistantMessageMaskingAdvisor` masks all assistant generations for non-stream and stream calls. Streaming uses per-subscription, per-choice rolling state sized from recognizer match and lookaround limits so sensitive values split across chunks are not released as plaintext or mixed between choices.
 - Both advisors must be built with the same explicit `C2DataMaskingService` instance. Their default order is inside the standard `ToolCallAdvisor` and chat-memory advisors so tools and persisted memory receive masked content.
 
 ---

@@ -40,6 +40,16 @@ public final class BankCardRecognizer implements C2DataRecognizer {
 		return MAX_MATCH_LENGTH;
 	}
 
+	@Override
+	public int maxLookbehindLength() {
+		return 2;
+	}
+
+	@Override
+	public int maxLookaheadLength() {
+		return 2;
+	}
+
 	private boolean isLuhnValid(String candidate) {
 		String digits = candidate.replace(" ", "").replace("-", "");
 		if (digits.length() < 12 || digits.length() > 19) {

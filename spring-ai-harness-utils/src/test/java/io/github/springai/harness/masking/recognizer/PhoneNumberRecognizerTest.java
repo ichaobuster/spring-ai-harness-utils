@@ -41,12 +41,16 @@ class PhoneNumberRecognizerTest {
 		assertThat(recognizer.detect(null)).isEmpty();
 		assertThat(recognizer.detect("")).isEmpty();
 		assertThat(recognizer.maxMatchLength()).isEqualTo(64);
+		assertThat(recognizer.maxLookbehindLength()).isEqualTo(1);
+		assertThat(recognizer.maxLookaheadLength()).isEqualTo(1);
 	}
 
 	@Test
 	void validatesTheDefaultRegion() {
 		assertThatThrownBy(() -> new PhoneNumberRecognizer(null)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new PhoneNumberRecognizer(" ")).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new PhoneNumberRecognizer("NOT_A_REGION"))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 
 }

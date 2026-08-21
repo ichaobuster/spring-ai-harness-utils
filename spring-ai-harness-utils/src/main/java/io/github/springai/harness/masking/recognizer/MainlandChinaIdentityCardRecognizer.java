@@ -50,6 +50,16 @@ public final class MainlandChinaIdentityCardRecognizer implements C2DataRecogniz
 		return MAX_MATCH_LENGTH;
 	}
 
+	@Override
+	public int maxLookbehindLength() {
+		return 1;
+	}
+
+	@Override
+	public int maxLookaheadLength() {
+		return 1;
+	}
+
 	private boolean isValid(String identityCard) {
 		try {
 			LocalDate birthDate = LocalDate.parse(identityCard.substring(6, 14), DATE_FORMATTER);

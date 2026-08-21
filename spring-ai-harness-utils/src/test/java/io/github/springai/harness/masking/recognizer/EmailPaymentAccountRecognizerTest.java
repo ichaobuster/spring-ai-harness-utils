@@ -26,11 +26,16 @@ class EmailPaymentAccountRecognizerTest {
 
 		assertThat(this.recognizer.detect("alice@localhost")).isEmpty();
 		assertThat(this.recognizer.detect(overlong)).isEmpty();
+		assertThat(this.recognizer.detect(".alice@example.com")).isEmpty();
+		assertThat(this.recognizer.detect("alice..bob@example.com")).isEmpty();
+		assertThat(this.recognizer.detect("alice.@example.com")).isEmpty();
 	}
 
 	@Test
 	void exposesItsBoundaryAndHandlesEmptyText() {
 		assertThat(this.recognizer.maxMatchLength()).isEqualTo(254);
+		assertThat(this.recognizer.maxLookbehindLength()).isEqualTo(1);
+		assertThat(this.recognizer.maxLookaheadLength()).isEqualTo(1);
 		assertThat(this.recognizer.detect(null)).isEmpty();
 		assertThat(this.recognizer.detect("")).isEmpty();
 	}

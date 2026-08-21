@@ -25,8 +25,11 @@ public final class PhoneNumberRecognizer implements C2DataRecognizer {
 		if (defaultRegion == null || defaultRegion.isBlank()) {
 			throw new IllegalArgumentException("defaultRegion must not be blank");
 		}
-		this.defaultRegion = defaultRegion.toUpperCase(Locale.ROOT);
 		this.phoneNumberUtil = PhoneNumberUtil.getInstance();
+		this.defaultRegion = defaultRegion.toUpperCase(Locale.ROOT);
+		if (!this.phoneNumberUtil.getSupportedRegions().contains(this.defaultRegion)) {
+			throw new IllegalArgumentException("defaultRegion must be a supported phone region");
+		}
 	}
 
 	@Override
@@ -48,6 +51,16 @@ public final class PhoneNumberRecognizer implements C2DataRecognizer {
 	@Override
 	public int maxMatchLength() {
 		return MAX_MATCH_LENGTH;
+	}
+
+	@Override
+	public int maxLookbehindLength() {
+		return 1;
+	}
+
+	@Override
+	public int maxLookaheadLength() {
+		return 1;
 	}
 
 }

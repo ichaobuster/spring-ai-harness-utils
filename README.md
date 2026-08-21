@@ -135,7 +135,7 @@ C2DataMaskingService extended = C2DataMaskingService.builder()
     .build();
 ```
 
-The streaming tail size is calculated from the effective recognizers. Supplying `recognizers(List.of())` disables detection and buffering.
+The streaming tail and boundary context are calculated from the effective recognizers. Supplying `recognizers(List.of())` disables detection and buffering.
 
 ## Using `spring-ai-skills` (XLSX / DOCX)
 

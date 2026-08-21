@@ -29,6 +29,8 @@ class BankCardRecognizerTest {
 	@Test
 	void exposesItsBoundaryAndHandlesEmptyText() {
 		assertThat(this.recognizer.maxMatchLength()).isEqualTo(37);
+		assertThat(this.recognizer.maxLookbehindLength()).isEqualTo(2);
+		assertThat(this.recognizer.maxLookaheadLength()).isEqualTo(2);
 		assertThat(this.recognizer.detect(null)).isEmpty();
 		assertThat(this.recognizer.detect("")).isEmpty();
 	}

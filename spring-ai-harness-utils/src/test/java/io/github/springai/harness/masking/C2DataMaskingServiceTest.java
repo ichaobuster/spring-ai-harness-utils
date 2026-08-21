@@ -156,6 +156,46 @@ class C2DataMaskingServiceTest {
 	}
 
 	@Test
+	void streamingSessionPreservesRecognizerBoundaryContext() {
+		String identity = "11010519491231002X";
+		String text = "A" + identity + " " + "x".repeat(235);
+		C2DataMaskingService.StreamingMaskingSession session = this.service.newStreamingSession();
+
+		String result = session.accept(text) + session.finish();
+
+		assertThat(result).isEqualTo(this.service.mask(text)).startsWith("A" + identity);
+	}
+
+	@Test
+	void streamingSessionSupportsCustomRecognizerLookbehind() {
+		C2DataRecognizer recognizer = new C2DataRecognizer() {
+			@Override
+			public List<C2DataMatch> detect(String text) {
+				int marker = text.indexOf("TOKEN:SECRET");
+				return marker < 0 ? List.of()
+						: List.of(new C2DataMatch(C2DataType.CUSTOM, marker + 6, marker + 12));
+			}
+
+			@Override
+			public int maxMatchLength() {
+				return 6;
+			}
+
+			@Override
+			public int maxLookbehindLength() {
+				return 6;
+			}
+		};
+		C2DataMaskingService custom = C2DataMaskingService.builder().recognizers(List.of(recognizer)).build();
+		String text = "x".repeat(10) + "TOKEN:SECRET";
+		C2DataMaskingService.StreamingMaskingSession session = custom.newStreamingSession();
+
+		String result = session.accept("x".repeat(10) + "TOKEN:SEC") + session.accept("RET") + session.finish();
+
+		assertThat(result).isEqualTo(custom.mask(text)).endsWith("TOKEN:******");
+	}
+
+	@Test
 	void streamingSessionCannotBeReusedAfterFinish() {
 		C2DataMaskingService.StreamingMaskingSession session = this.service.newStreamingSession();
 		session.accept("hello");
@@ -187,6 +227,8 @@ class C2DataMaskingServiceTest {
 		assertThat(this.service.getDefaultPhoneRegion()).isEqualTo("CN");
 		assertThatThrownBy(() -> C2DataMaskingService.builder().defaultPhoneRegion(" ").build())
 				.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> C2DataMaskingService.builder().defaultPhoneRegion("NOT_A_REGION").build())
+				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new C2DataMatch(null, 0, 1)).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new C2DataMatch(C2DataType.CUSTOM, 1, 1))
 				.isInstanceOf(IllegalArgumentException.class);
@@ -202,6 +244,24 @@ class C2DataMaskingServiceTest {
 			}
 		};
 		assertThatThrownBy(() -> C2DataMaskingService.builder().addRecognizer(invalidRecognizer).build())
+				.isInstanceOf(IllegalArgumentException.class);
+		C2DataRecognizer invalidContextRecognizer = new C2DataRecognizer() {
+			@Override
+			public List<C2DataMatch> detect(String text) {
+				return List.of();
+			}
+
+			@Override
+			public int maxMatchLength() {
+				return 1;
+			}
+
+			@Override
+			public int maxLookbehindLength() {
+				return -1;
+			}
+		};
+		assertThatThrownBy(() -> C2DataMaskingService.builder().recognizers(List.of(invalidContextRecognizer)).build())
 				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> C2DataMaskingService.builder().addRecognizer(null))
 				.isInstanceOf(IllegalArgumentException.class);

@@ -31,6 +31,12 @@ public final class C2DataMaskingService {
 
 	private final int maxMatchLength;
 
+	private final int maxLookbehindLength;
+
+	private final int maxLookaheadLength;
+
+	private final int streamingTailLength;
+
 	private C2DataMaskingService(char maskCharacter, String defaultPhoneRegion,
 			List<C2DataRecognizer> recognizers) {
 		if (defaultPhoneRegion == null || defaultPhoneRegion.isBlank()) {
@@ -39,16 +45,31 @@ public final class C2DataMaskingService {
 		this.maskCharacter = maskCharacter;
 		this.defaultPhoneRegion = defaultPhoneRegion.toUpperCase(Locale.ROOT);
 		this.phoneNumberUtil = PhoneNumberUtil.getInstance();
+		if (!this.phoneNumberUtil.getSupportedRegions().contains(this.defaultPhoneRegion)) {
+			throw new IllegalArgumentException("defaultPhoneRegion must be a supported phone region");
+		}
 		this.recognizers = List.copyOf(recognizers);
-		this.maxMatchLength = this.recognizers.stream()
-				.mapToInt(C2DataRecognizer::maxMatchLength)
-				.peek(length -> {
-					if (length <= 0) {
-						throw new IllegalArgumentException("recognizer maxMatchLength must be positive");
-					}
-				})
-				.max()
-				.orElse(0);
+		int maximumMatchLength = 0;
+		int maximumLookbehindLength = 0;
+		int maximumLookaheadLength = 0;
+		for (C2DataRecognizer recognizer : this.recognizers) {
+			int matchLength = recognizer.maxMatchLength();
+			int lookbehindLength = recognizer.maxLookbehindLength();
+			int lookaheadLength = recognizer.maxLookaheadLength();
+			if (matchLength <= 0) {
+				throw new IllegalArgumentException("recognizer maxMatchLength must be positive");
+			}
+			if (lookbehindLength < 0 || lookaheadLength < 0) {
+				throw new IllegalArgumentException("recognizer context lengths must not be negative");
+			}
+			maximumMatchLength = Math.max(maximumMatchLength, matchLength);
+			maximumLookbehindLength = Math.max(maximumLookbehindLength, lookbehindLength);
+			maximumLookaheadLength = Math.max(maximumLookaheadLength, lookaheadLength);
+		}
+		this.maxMatchLength = maximumMatchLength;
+		this.maxLookbehindLength = maximumLookbehindLength;
+		this.maxLookaheadLength = maximumLookaheadLength;
+		this.streamingTailLength = Math.addExact(this.maxMatchLength, this.maxLookaheadLength);
 	}
 
 	public static Builder builder() {
@@ -204,6 +225,8 @@ public final class C2DataMaskingService {
 
 		private final StringBuilder pending = new StringBuilder();
 
+		private final StringBuilder emittedContext = new StringBuilder();
+
 		private boolean finished;
 
 		private StreamingMaskingSession(C2DataMaskingService service) {
@@ -217,21 +240,33 @@ public final class C2DataMaskingService {
 			if (chunk != null) {
 				this.pending.append(chunk);
 			}
-			int cutoff = this.pending.length() - this.service.getMaxMatchLength();
+			int cutoff = this.pending.length() - this.service.streamingTailLength;
 			if (cutoff <= 0) {
 				return "";
 			}
 
-			String buffered = this.pending.toString();
-			for (C2DataMatch match : this.service.detect(buffered)) {
-				if (match.start() < cutoff && match.end() > cutoff) {
-					cutoff = Math.min(cutoff, match.start());
+			String buffered = this.emittedContext + this.pending.toString();
+			int contextLength = this.emittedContext.length();
+			List<C2DataMatch> matches = this.service.detect(buffered);
+			boolean adjusted;
+			do {
+				adjusted = false;
+				int boundary = contextLength + cutoff;
+				for (C2DataMatch match : matches) {
+					if (match.start() < boundary && match.end() > boundary) {
+						cutoff = Math.max(0, match.start() - contextLength);
+						adjusted = true;
+						break;
+					}
 				}
 			}
+			while (adjusted);
 			if (cutoff <= 0) {
 				return "";
 			}
-			String safe = this.service.mask(buffered.substring(0, cutoff));
+
+			String safe = this.service.mask(buffered).substring(contextLength, contextLength + cutoff);
+			updateEmittedContext(this.pending.substring(0, cutoff));
 			this.pending.delete(0, cutoff);
 			return safe;
 		}
@@ -241,9 +276,22 @@ public final class C2DataMaskingService {
 				return "";
 			}
 			this.finished = true;
-			String result = this.service.mask(this.pending.toString());
+			int contextLength = this.emittedContext.length();
+			String result = this.service.mask(this.emittedContext + this.pending.toString()).substring(contextLength);
 			this.pending.setLength(0);
+			this.emittedContext.setLength(0);
 			return result;
+		}
+
+		private void updateEmittedContext(String released) {
+			int contextLimit = this.service.maxLookbehindLength;
+			if (contextLimit == 0) {
+				return;
+			}
+			this.emittedContext.append(released);
+			if (this.emittedContext.length() > contextLimit) {
+				this.emittedContext.delete(0, this.emittedContext.length() - contextLimit);
+			}
 		}
 
 	}

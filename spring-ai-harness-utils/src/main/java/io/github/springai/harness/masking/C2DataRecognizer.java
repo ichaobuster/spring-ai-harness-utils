@@ -18,4 +18,18 @@ public interface C2DataRecognizer {
 	 */
 	int maxMatchLength();
 
+	/**
+	 * Maximum number of characters before a match that can affect recognition.
+	 */
+	default int maxLookbehindLength() {
+		return 0;
+	}
+
+	/**
+	 * Maximum number of characters after a match that can affect recognition.
+	 */
+	default int maxLookaheadLength() {
+		return 0;
+	}
+
 }

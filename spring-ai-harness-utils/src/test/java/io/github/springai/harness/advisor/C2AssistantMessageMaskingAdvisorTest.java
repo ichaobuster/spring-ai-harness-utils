@@ -110,6 +110,20 @@ class C2AssistantMessageMaskingAdvisorTest {
 	}
 
 	@Test
+	void isolatesInterleavedStreamChoicesByStableIndex() {
+		ChatClientRequest request = request();
+		StreamAdvisorChain chain = mock(StreamAdvisorChain.class);
+		when(chain.nextStream(request))
+				.thenReturn(Flux.just(indexedResponse(0, "请联系13800"), indexedResponse(1, "邮箱ali"),
+						indexedResponse(0, "138000"), indexedResponse(1, "ce@example.com"), emptyResponse()));
+
+		List<ChatClientResponse> results = this.advisor.adviseStream(request, chain).collectList().block();
+
+		assertThat(streamedText(results, 0)).isEqualTo("请联系138****8000");
+		assertThat(streamedText(results, 1)).isEqualTo("邮箱a****@example.com");
+	}
+
+	@Test
 	void builderSupportsCustomOrder() {
 		assertThat(this.advisor.getOrder()).isEqualTo(Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER + 120);
 		assertThat(C2AssistantMessageMaskingAdvisor.builder(this.service).order(42).build().getOrder()).isEqualTo(42);
@@ -129,6 +143,16 @@ class C2AssistantMessageMaskingAdvisorTest {
 				.build();
 	}
 
+	private ChatClientResponse indexedResponse(int index, String text) {
+		AssistantMessage message = AssistantMessage.builder()
+				.content(text)
+				.properties(Map.of("index", index))
+				.build();
+		return ChatClientResponse.builder()
+				.chatResponse(ChatResponse.builder().generations(List.of(new Generation(message))).build())
+				.build();
+	}
+
 	private ChatClientResponse emptyResponse() {
 		return ChatClientResponse.builder()
 				.chatResponse(ChatResponse.builder().generations(List.of()).build())
@@ -139,6 +163,15 @@ class C2AssistantMessageMaskingAdvisorTest {
 		return responses.stream()
 				.flatMap(response -> response.chatResponse().getResults().stream())
 				.map(generation -> generation.getOutput().getText())
+				.reduce("", String::concat);
+	}
+
+	private String streamedText(List<ChatClientResponse> responses, int index) {
+		return responses.stream()
+				.flatMap(response -> response.chatResponse().getResults().stream())
+				.map(Generation::getOutput)
+				.filter(message -> Integer.valueOf(index).equals((Object) message.getMetadata().get("index")))
+				.map(AssistantMessage::getText)
 				.reduce("", String::concat);
 	}
 
